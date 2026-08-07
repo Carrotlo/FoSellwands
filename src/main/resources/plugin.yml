@@ -1,0 +1,41 @@
+name: FoSellwands
+description: FoShop and ShopGUIPlus sellwand plugin with editable wands, secure item data, and AxSellwands migration.
+version: '${version}'
+
+main: me.foesio.foSellwands.FoSellwands
+api-version: '1.21'
+
+authors: [ Carrotio ]
+depend:
+  - Vault
+softdepend:
+  - FoShop
+  - ShopGUIPlus
+  - WorldGuard
+
+commands:
+  fosellwandsadmin:
+    description: FoSellwands admin command.
+    usage: /fosellwandsadmin <editor|reload|version|list|give> [player] [multiplier|tier] [uses] [amount]
+    aliases:
+      - sellwandsadmin
+      - fosellwands
+      - sellwands
+    permission: fosellwands.admin
+
+permissions:
+  fosellwands.admin:
+    description: Allows managing FoSellwands.
+    default: op
+  fosellwands.use:
+    description: Allows using sellwands.
+    default: true
+  fosellwands.use.basic:
+    description: Allows using the basic sellwand tier when per-tier permissions are enabled.
+    default: true
+  fosellwands.use.rare:
+    description: Allows using the rare sellwand tier when per-tier permissions are enabled.
+    default: true
+  fosellwands.use.legendary:
+    description: Allows using the legendary sellwand tier when per-tier permissions are enabled.
+    default: true

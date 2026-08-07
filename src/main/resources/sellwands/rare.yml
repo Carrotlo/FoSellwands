@@ -1,0 +1,18 @@
+material: GOLDEN_HOE
+glow: true
+custom-model-data: 0
+multiplier: 1.5
+uses: 250
+name: "#03fc88ʀᴀʀᴇ sᴇʟʟᴡᴀɴᴅ &8(&f{multiplier}x&8)"
+lore:
+  - ""
+  - "#03fc88ɪɴғᴏ"
+  - " &8❙ &fMultiplier: #03fc88{multiplier}x"
+  - " &8❙ &fUses: #03fc88{uses}/{max_uses} &8({uses_bar}&8)"
+  - ""
+  - "#03fc88sᴛᴀᴛs"
+  - " &8❙ &fSold items: #03fc88{sold_items}"
+  - " &8❙ &fMoney made: #03fc88${sold_money}"
+  - ""
+  - "#03fc88▶ #a7b8b0Left click &8- &fInspect"
+  - "#03fc88▶ #a7b8b0Right click &8- &fSell"

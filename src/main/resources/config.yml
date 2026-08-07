@@ -1,0 +1,118 @@
+# FoSellwands configuration
+# Colors support Mini-style hex tokens like #03fc88 and legacy & codes.
+
+# File logging works like debug mode and saves plugin activity to logs/latest.log. Default: false
+file-logging: false
+
+settings:
+  # LEFT_INSPECT_RIGHT_SELL, SHIFT_RIGHT_SELL, RIGHT_INSPECT_CONFIRM
+  click-mode: LEFT_INSPECT_RIGHT_SELL
+  confirm-to-sell: false
+  confirm-time-seconds: 6
+  nested-containers: true
+  nested-container-max-depth: 4
+  sell-empty-container-shells: false
+
+pricing:
+  # First provider with a valid sell price is used. Supported: FoShop, ShopGUIPlus.
+  provider-priority:
+    - FoShop
+    - ShopGUIPlus
+
+cooldown:
+  enabled: false
+  seconds: 3
+
+permissions:
+  per-tier: false
+
+breakdown:
+  enabled: true
+  max-lines: 8
+  header: "{prefix}{muted}Sale breakdown:"
+  line: "{prefix} &8• {theme}{amount}x {item} {muted}= {theme}${price}"
+  more: "{prefix}{muted}And {theme}{amount} {muted}more item types."
+
+history:
+  enabled: true
+  # Sale history is separate from debug file logging.
+  folder: sale-history
+
+feedback:
+  actionbar:
+    enabled: true
+    sell: "#3ecf8eSold {amount} items for ${price}"
+  title:
+    enabled: false
+    title: "#03fc88sᴏʟᴅ"
+    subtitle: "#a7b8b0{amount} items for #03fc88${price}"
+    fade-in: 5
+    stay: 35
+    fade-out: 10
+  sound:
+    enabled: true
+    sell: ENTITY_PLAYER_LEVELUP
+    volume: 0.8
+    pitch: 1.25
+  particle:
+    enabled: true
+    sell: HAPPY_VILLAGER
+    amount: 18
+    offset-x: 0.45
+    offset-y: 0.55
+    offset-z: 0.45
+  hologram:
+    enabled: false
+    duration-ticks: 45
+    y-offset: 1.35
+    line-width: 180
+    view-range: 24.0
+    shadow: true
+    see-through: false
+    # 0 is fully transparent. Increase toward 255 if you want a visible background.
+    background-alpha: 0
+    lines:
+      - "#03fc88+${price}"
+      - "#ffffff{amount} ɪᴛᴇᴍs #a7b8b0sᴏʟᴅ"
+
+safety:
+  block-wand-crafting: true
+
+protection:
+  worldguard: true
+  admin-bypass: false
+
+axsellwands:
+  runtime-conversion: true
+  folder-mapping: true
+  folder: plugins/AxSellwands/sellwands
+
+containers:
+  enabled:
+    CHEST: true
+    TRAPPED_CHEST: true
+    BARREL: true
+    SHULKER_BOX: true
+    WHITE_SHULKER_BOX: true
+    ORANGE_SHULKER_BOX: true
+    MAGENTA_SHULKER_BOX: true
+    LIGHT_BLUE_SHULKER_BOX: true
+    YELLOW_SHULKER_BOX: true
+    LIME_SHULKER_BOX: true
+    PINK_SHULKER_BOX: true
+    GRAY_SHULKER_BOX: true
+    LIGHT_GRAY_SHULKER_BOX: true
+    CYAN_SHULKER_BOX: true
+    PURPLE_SHULKER_BOX: true
+    BLUE_SHULKER_BOX: true
+    BROWN_SHULKER_BOX: true
+    GREEN_SHULKER_BOX: true
+    RED_SHULKER_BOX: true
+    BLACK_SHULKER_BOX: true
+    FURNACE: false
+    SMOKER: false
+    BLAST_FURNACE: false
+    HOPPER: true
+    DROPPER: false
+    DISPENSER: false
+    ENDER_CHEST: false
