@@ -293,6 +293,11 @@ public final class EditorManager implements Listener {
         if (slot < 0 || slot >= topSize) {
             return;
         }
+        if (!(topHolder instanceof ContainerPageTwoHolder)
+                && !(topHolder instanceof MaterialChooserHolder)
+                && !(topHolder instanceof MenuHolder)) {
+            return;
+        }
         event.setCancelled(true);
         if (topHolder instanceof ContainerPageTwoHolder containerPageTwoHolder) {
             clickContainerPageTwo(player, containerPageTwoHolder, slot);
@@ -749,7 +754,7 @@ public final class EditorManager implements Listener {
         List<CycleOption> cycleOptions = options.stream()
                 .map(option -> new CycleOption(option, option))
                 .toList();
-        return EditorItemFactory.cycle(name, current, cycleOptions);
+        return EditorItemFactory.cycle(messages, name, current, cycleOptions);
     }
 
     private void syncFileLogging() {

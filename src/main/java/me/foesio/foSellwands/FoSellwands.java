@@ -58,7 +58,7 @@ public final class FoSellwands extends JavaPlugin {
         this.wandService = new WandService(this, configManager, economyService);
         this.sellService = new SellService(this, configManager, messages, economyService, shopPriceService, protectionService, wandService, historyService, hologramService, fileLogger);
         this.editorManager = new EditorManager(this, configManager, messages, wandService, fileLogger);
-        this.wandInventoryGuard = new WandInventoryGuard(configManager, messages, wandService);
+        this.wandInventoryGuard = new WandInventoryGuard(configManager, wandService);
 
         if (!economyService.setup()) {
             fileLogger.warn("Vault economy provider missing. Disabling plugin.");
