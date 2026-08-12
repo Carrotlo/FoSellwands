@@ -9,6 +9,10 @@ import me.foesio.core.editor.EditorSettingSaver;
 import me.foesio.core.editor.CycleOption;
 import me.foesio.core.gui.GuiButtonConfig;
 import me.foesio.core.gui.GuiSlots;
+import me.foesio.core.gui.EntryBrowserClick;
+import me.foesio.core.gui.EntryBrowserHolder;
+import me.foesio.core.gui.EntryBrowserMenus;
+import me.foesio.core.gui.EntryBrowserRequest;
 import me.foesio.core.item.FoItemStacks;
 import me.foesio.core.logging.FoFileLogger;
 import me.foesio.core.material.MaterialTypes;
@@ -33,12 +37,12 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -49,11 +53,6 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 public final class EditorManager implements Listener {
-    private static final int[] PAGE_SLOTS = {
-            10, 11, 12, 13, 14, 15, 16,
-            19, 20, 21, 22, 23, 24, 25,
-            28, 29, 30, 31, 32, 33, 34
-    };
     private static final List<String> CLICK_MODES = List.of("LEFT_INSPECT_RIGHT_SELL", "SHIFT_RIGHT_SELL", "RIGHT_INSPECT_CONFIRM");
     private static final GuiButtonConfig BUTTONS = GuiButtonConfig.defaults();
 
@@ -63,7 +62,6 @@ public final class EditorManager implements Listener {
     private final WandService wandService;
     private final FoFileLogger fileLogger;
     private final EditorSettingSaver settingSaver;
-    private final Map<UUID, WandBrowserState> wandBrowsers = new LinkedHashMap<>();
     private final Set<UUID> suppressConfirmClose = new HashSet<>();
 
     public EditorManager(
@@ -82,7 +80,6 @@ public final class EditorManager implements Listener {
     }
 
     public void close() {
-        wandBrowsers.clear();
         suppressConfirmClose.clear();
     }
 
@@ -129,67 +126,31 @@ public final class EditorManager implements Listener {
     }
 
     private void openWands(Player player) {
-        WandBrowserState state = wandBrowsers.getOrDefault(player.getUniqueId(), new WandBrowserState(0, ""));
-        openWands(player, state.page(), state.query());
+        openWands(player, 0, "");
     }
 
     private void openWands(Player player, int requestedPage, String query) {
         String normalizedQuery = query == null ? "" : query.toLowerCase(Locale.ROOT).trim();
-        List<String> tiers = new ArrayList<>(wandService.tierIds());
-        if (!normalizedQuery.isBlank()) {
-            tiers = tiers.stream()
-                    .filter(tier -> tier.toLowerCase(Locale.ROOT).contains(normalizedQuery))
-                    .toList();
-        }
-        int totalPages = Math.max(1, (int) Math.ceil(tiers.size() / (double) PAGE_SLOTS.length));
-        int page = Math.max(0, Math.min(requestedPage, totalPages - 1));
-        wandBrowsers.put(player.getUniqueId(), new WandBrowserState(page, normalizedQuery));
-
-        MenuHolder holder = new MenuHolder(MenuType.WANDS, null, page, normalizedQuery);
-        Inventory inventory = Bukkit.createInventory(holder, 54, title("&8sᴇʟʟᴡᴀɴᴅs"));
-        holder.inventory = inventory;
-        fill(inventory);
-        for (int slot = 36; slot <= 44; slot++) {
-            inventory.setItem(slot, EditorItemFactory.item(Material.GRAY_STAINED_GLASS_PANE, " ", List.of()));
-        }
-
-        int start = page * PAGE_SLOTS.length;
-        for (int i = 0; i < PAGE_SLOTS.length; i++) {
-            int index = start + i;
-            if (index >= tiers.size()) {
-                inventory.setItem(PAGE_SLOTS[i], EditorItemFactory.item(
-                        Material.LIGHT_GRAY_STAINED_GLASS_PANE,
-                        " ",
-                        List.of()
-                ));
-                continue;
-            }
-            int slot = PAGE_SLOTS[i];
-            String tier = tiers.get(index);
-            holder.slotToTier.put(slot, tier);
-            inventory.setItem(slot, EditorItemFactory.item(wandService.tierMaterial(tier), "#03fc88" + tier,
-                    List.of(
-                            "#ffffffMultiplier: #03fc88" + wandService.tierMultiplier(tier) + "x",
-                            "#ffffffUses: #03fc88" + wandService.tierUses(tier),
-                            "#ffffffPermission: #03fc88fosellwands.use." + tier,
-                            "",
-                            "#a7b8b0Click to edit."
-                    )));
-        }
-
-        inventory.setItem(GuiSlots.bottomMiddleSlot(6), BUTTONS.back());
-        inventory.setItem(51, BUTTONS.search(normalizedQuery));
-        if (!normalizedQuery.isBlank()) {
-            inventory.setItem(52, BUTTONS.clearSearch("sellwand tiers"));
-        }
-        if (page > 0) {
-            inventory.setItem(45, BUTTONS.previousPage(page, totalPages - 1));
-        }
-        if (page < totalPages - 1) {
-            inventory.setItem(53, BUTTONS.nextPage(page, totalPages - 1));
-        }
-        inventory.setItem(47, EditorItemFactory.item(Material.ANVIL, "#3ecf8eAdd Sellwand", List.of("#ffffffCreate a new sellwand tier.")));
-        player.openInventory(inventory);
+        List<EntryBrowserRequest.Entry> entries = wandService.tierIds().stream()
+                .filter(tier -> normalizedQuery.isBlank() || tier.toLowerCase(Locale.ROOT).contains(normalizedQuery))
+                .map(tier -> EntryBrowserRequest.Entry.of(tier, EditorItemFactory.item(wandService.tierMaterial(tier), "#03fc88" + tier,
+                        List.of(
+                                "#ffffffMultiplier: #03fc88" + wandService.tierMultiplier(tier) + "x",
+                                "#ffffffUses: #03fc88" + wandService.tierUses(tier),
+                                "#ffffffPermission: #03fc88fosellwands.use." + tier,
+                                "",
+                                "#a7b8b0Click to edit."
+                        ))))
+                .toList();
+        EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
+                .title("Sellwands")
+                .entries(entries)
+                .page(requestedPage)
+                .filter(normalizedQuery)
+                .buttons(BUTTONS)
+                .showBack(true)
+                .addButton(EditorItemFactory.item(Material.ANVIL, "#3ecf8eAdd Sellwand", List.of("#ffffffCreate a new sellwand tier.")))
+                .build());
     }
 
     private void openTier(Player player, String tier) {
@@ -293,6 +254,11 @@ public final class EditorManager implements Listener {
         if (slot < 0 || slot >= topSize) {
             return;
         }
+        if (topHolder instanceof EntryBrowserHolder entryBrowserHolder) {
+            event.setCancelled(true);
+            handleEntryBrowserClick(player, event.getSlot(), entryBrowserHolder);
+            return;
+        }
         if (!(topHolder instanceof ContainerPageTwoHolder)
                 && !(topHolder instanceof MaterialChooserHolder)
                 && !(topHolder instanceof MenuHolder)) {
@@ -313,9 +279,22 @@ public final class EditorManager implements Listener {
 
         switch (holder.type) {
             case MAIN -> clickMain(player, slot);
-            case WANDS -> clickWands(player, holder, slot);
             case TIER -> clickTier(player, holder.value, slot, event.getCursor());
             case CONFIRM_DELETE -> clickConfirmDelete(player, holder.value, slot);
+        }
+    }
+
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof EntryBrowserHolder)) {
+            return;
+        }
+        for (int rawSlot : event.getRawSlots()) {
+            if (rawSlot >= 0 && rawSlot < top.getSize()) {
+                event.setCancelled(true);
+                return;
+            }
         }
     }
 
@@ -352,37 +331,12 @@ public final class EditorManager implements Listener {
         }
     }
 
-    private void clickWands(Player player, MenuHolder holder, int slot) {
-        if (slot == GuiSlots.bottomMiddleSlot(6)) {
-            openMain(player);
-            return;
-        }
-        if (slot == 51) {
-            prompt(player, inputRequest(
-                    "Search",
-                    "#a7b8b0Filter sellwand tiers.",
-                    "#ffffffSearch",
-                    holder.query,
-                    "search text",
-                    DialogButton.search("Apply"),
-                    64
-            ), () -> openWands(player, holder.page, holder.query), input -> {
-                openWands(player, 0, input);
-                messages.send(player, "messages.editor-search", "{prefix}{muted}Search set to {theme}{query}{muted}.", Map.of("query", input));
-            });
-            return;
-        }
-        if (slot == 52 && !holder.query.isBlank()) {
-            openWands(player, 0, "");
-            messages.send(player, "messages.editor-search-cleared", "{prefix}{muted}Search cleared.");
-            return;
-        }
-        if (slot == 45) {
-            openWands(player, holder.page - 1, holder.query);
-            return;
-        }
-        if (slot == 47) {
-            prompt(player, inputRequest(
+    private void handleEntryBrowserClick(Player player, int slot, EntryBrowserHolder holder) {
+        EntryBrowserRequest request = holder.request();
+        EntryBrowserClick click = EntryBrowserMenus.handleClick(slot, holder);
+        switch (click.action()) {
+            case ENTRY -> openTier(player, click.entryId());
+            case ADD -> prompt(player, inputRequest(
                     "#03fc88New Sellwand",
                     "#a7b8b0Enter a new tier id.",
                     "#ffffffTier ID",
@@ -390,16 +344,28 @@ public final class EditorManager implements Listener {
                     "new tier id, example epic",
                     DialogButton.save(),
                     96
-            ), () -> openWands(player), input -> createTier(player, input));
-            return;
-        }
-        if (slot == 53) {
-            openWands(player, holder.page + 1, holder.query);
-            return;
-        }
-        String tier = holder.slotToTier.get(slot);
-        if (tier != null) {
-            openTier(player, tier);
+            ), () -> openWands(player, request.page(), request.filter()), input -> createTier(player, input));
+            case BACK -> openMain(player);
+            case SEARCH -> prompt(player, inputRequest(
+                    "Search",
+                    "#a7b8b0Filter sellwand tiers.",
+                    "#ffffffSearch",
+                    request.filter(),
+                    "search text",
+                    DialogButton.search("Apply"),
+                    64
+            ), () -> openWands(player, request.page(), request.filter()), input -> {
+                openWands(player, 0, input);
+                messages.send(player, "messages.editor-search", "{prefix}{muted}Search set to {theme}{query}{muted}.", Map.of("query", input));
+            });
+            case CLEAR_SEARCH -> {
+                openWands(player, 0, "");
+                messages.send(player, "messages.editor-search-cleared", "{prefix}{muted}Search cleared.");
+            }
+            case PREVIOUS_PAGE -> openWands(player, request.page() - 1, request.filter());
+            case NEXT_PAGE -> openWands(player, request.page() + 1, request.filter());
+            case NONE -> {
+            }
         }
     }
 
@@ -804,7 +770,6 @@ public final class EditorManager implements Listener {
 
     private enum MenuType {
         MAIN,
-        WANDS,
         TIER,
         CONFIRM_DELETE
     }
@@ -812,20 +777,11 @@ public final class EditorManager implements Listener {
     private static final class MenuHolder implements InventoryHolder {
         private final MenuType type;
         private final String value;
-        private final int page;
-        private final String query;
-        private final Map<Integer, String> slotToTier = new LinkedHashMap<>();
         private Inventory inventory;
 
         private MenuHolder(MenuType type, String value) {
-            this(type, value, 0, "");
-        }
-
-        private MenuHolder(MenuType type, String value, int page, String query) {
             this.type = type;
             this.value = value;
-            this.page = page;
-            this.query = query == null ? "" : query;
         }
 
         @Override
@@ -858,6 +814,4 @@ public final class EditorManager implements Listener {
         }
     }
 
-    private record WandBrowserState(int page, String query) {
-    }
 }
