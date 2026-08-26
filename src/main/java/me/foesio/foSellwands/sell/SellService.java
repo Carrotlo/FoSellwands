@@ -4,7 +4,7 @@ import me.foesio.core.item.FoItemStacks;
 import me.foesio.core.logging.FoFileLogger;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.number.DurationParser;
-import me.foesio.core.sound.SoundTypes;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.foSellwands.config.ConfigManager;
 import me.foesio.foSellwands.hook.EconomyService;
 import me.foesio.foSellwands.hook.HistoryService;
@@ -17,7 +17,6 @@ import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.entity.Player;
@@ -47,6 +46,7 @@ public final class SellService implements Listener {
     private final JavaPlugin plugin;
     private final ConfigManager configManager;
     private final FoMessageService messages;
+    private final FoSoundService sounds;
     private final EconomyService economyService;
     private final ShopPriceService shopPriceService;
     private final ProtectionService protectionService;
@@ -61,6 +61,7 @@ public final class SellService implements Listener {
             JavaPlugin plugin,
             ConfigManager configManager,
             FoMessageService messages,
+            FoSoundService sounds,
             EconomyService economyService,
             ShopPriceService shopPriceService,
             ProtectionService protectionService,
@@ -72,6 +73,7 @@ public final class SellService implements Listener {
         this.plugin = plugin;
         this.configManager = configManager;
         this.messages = messages;
+        this.sounds = sounds;
         this.economyService = economyService;
         this.shopPriceService = shopPriceService;
         this.protectionService = protectionService;
@@ -102,40 +104,48 @@ public final class SellService implements Listener {
 
         Player player = event.getPlayer();
         if (wand.getAmount() > 1) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.stacked-wand", "{prefix}{bad}Unstack this sellwand before using it.");
             return;
         }
         if (!player.hasPermission("fosellwands.use")) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.use-no-permission", "{prefix}{bad}You cannot use sellwands.");
             return;
         }
         WandData data = dataOptional.get();
         if (data.uses() == 0) {
             player.getInventory().setItemInMainHand(null);
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.wand-broken", "{prefix}{bad}Your sellwand ran out of uses.");
             return;
         }
         if (!canUseTier(player, data)) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.tier-no-permission", "{prefix}{bad}You cannot use this sellwand tier.");
             return;
         }
 
         Block block = event.getClickedBlock();
         if (block == null) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.not-container", "{prefix}{bad}That is not a supported container.");
             return;
         }
         if (!configManager.isContainerEnabled(block.getType())) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.disabled-container", "{prefix}{bad}Sellwands cannot be used on this container.");
             return;
         }
         if (!protectionService.canUse(player, block)) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.protected", "{prefix}{bad}You cannot sell there.");
             return;
         }
 
         Inventory inventory = resolveInventory(player, block);
         if (inventory == null) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.not-container", "{prefix}{bad}That is not a supported container.");
             return;
         }
@@ -156,6 +166,7 @@ public final class SellService implements Listener {
 
         long cooldownRemaining = cooldownRemaining(player);
         if (cooldownRemaining > 0) {
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.cooldown", "{prefix}{bad}Wait {theme}{time}s {bad}before using a sellwand again.", Map.of("time", Long.toString(cooldownRemaining)));
             return;
         }
@@ -211,9 +222,11 @@ public final class SellService implements Listener {
         ItemStack[] working = cloneContents(inventory.getContents());
         SellResult result = processContents(player, working, data.multiplier(), maxDepth());
         if (result.itemAmount() <= 0 || result.money() <= 0) {
+            sounds.play(player, "sell.empty");
             messages.send(player, "messages.nothing-sold", "{prefix}{bad}Nothing sellable was found.");
             return;
         }
+        sounds.play(player, "sell.inspect");
         messages.send(player, "messages.inspect", "{prefix}{muted}This container is worth {theme}${price} {muted}from {theme}{amount} items{muted}.", replacements(result));
     }
 
@@ -221,11 +234,13 @@ public final class SellService implements Listener {
         ItemStack[] working = cloneContents(inventory.getContents());
         SellResult result = processContents(player, working, data.multiplier(), maxDepth());
         if (result.itemAmount() <= 0 || result.money() <= 0) {
+            sounds.play(player, "sell.empty");
             messages.send(player, "messages.nothing-sold", "{prefix}{bad}Nothing sellable was found.");
             return;
         }
         long expiresAt = System.currentTimeMillis() + configuredSeconds("settings.confirm-time-seconds", 6) * 1000L;
         confirms.put(player.getUniqueId(), new PendingConfirm(blockKey(block), expiresAt));
+        sounds.play(player, "sell.confirm");
         messages.send(player, "messages.confirm", "{prefix}{muted}Click again to sell {theme}{amount} items {muted}for {theme}${price}{muted}.", replacements(result));
     }
 
@@ -239,6 +254,7 @@ public final class SellService implements Listener {
         ItemStack[] working = cloneContents(original);
         SellResult result = processContents(player, working, data.multiplier(), maxDepth());
         if (result.itemAmount() <= 0 || result.money() <= 0) {
+            sounds.play(player, "sell.empty");
             messages.send(player, "messages.nothing-sold", "{prefix}{bad}Nothing sellable was found.");
             return;
         }
@@ -254,6 +270,7 @@ public final class SellService implements Listener {
             if (!economyService.deposit(player, result.money())) {
                 restoreInventory(block, inventory, original);
                 fileLogger.warn("Vault payout failed for " + player.getName() + "; sale rolled back.");
+                sounds.play(player, "sell.error");
                 messages.send(player, "messages.vault-failed", "{prefix}{bad}The sale could not be paid. No items were removed.");
                 return;
             }
@@ -274,6 +291,7 @@ public final class SellService implements Listener {
             }
             plugin.getLogger().warning("Safely rolled back sellwand sale for " + player.getName() + ": " + exception.getMessage());
             fileLogger.error("Safely rolled back sellwand sale for " + player.getName() + ".", exception);
+            sounds.play(player, "sell.error");
             messages.send(player, "messages.sale-failed", "{prefix}{bad}The sale failed safely. No items were removed.");
             return;
         }
@@ -505,25 +523,9 @@ public final class SellService implements Listener {
                     configManager.config().getInt("feedback.title.fade-out", 10)
             );
         }
-        playSound(player);
+        sounds.play(player, "sell.success");
         spawnParticles(block);
         hologramService.spawn(block, replacements);
-    }
-
-    private void playSound(Player player) {
-        if (!configManager.config().getBoolean("feedback.sound.enabled", true)) {
-            return;
-        }
-        String configured = configManager.config().getString("feedback.sound.sell", "ENTITY_PLAYER_LEVELUP");
-        Sound sound = SoundTypes.resolve(configured).orElseGet(() -> {
-            String value = configured == null ? "" : configured;
-            plugin.getLogger().warning("Invalid sell sound in config.yml: " + value + ". Falling back to ENTITY_PLAYER_LEVELUP.");
-            fileLogger.warn("Invalid sell sound in config.yml: " + value + ". Falling back to ENTITY_PLAYER_LEVELUP.");
-            return SoundTypes.resolveOrDefault("ENTITY_PLAYER_LEVELUP", Sound.ENTITY_PLAYER_LEVELUP);
-        });
-        player.playSound(player.getLocation(), sound,
-                (float) configManager.config().getDouble("feedback.sound.volume", 0.8D),
-                (float) configManager.config().getDouble("feedback.sound.pitch", 1.25D));
     }
 
     private void spawnParticles(Block block) {

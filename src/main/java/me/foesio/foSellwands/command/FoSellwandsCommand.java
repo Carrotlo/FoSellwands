@@ -52,6 +52,7 @@ public final class FoSellwandsCommand {
                 .reloads(reloadRegistry)
                 .updates(updateNotices)
                 .adminMessages(adminMessages)
+                .adminSounds(plugin.adminSounds())
                 .addSubcommand(FoAdminSubcommand.builder("editor", context -> {
                     editorManager.openMain(context.playerOrNull());
                     return true;

@@ -7,6 +7,10 @@ import me.foesio.core.logging.FoFileLogger;
 import me.foesio.core.message.FoMessageMigrations;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.reload.FoReloadRegistry;
+import me.foesio.core.sound.FoAdminSounds;
+import me.foesio.core.sound.FoEditorSounds;
+import me.foesio.core.sound.FoSoundMigrations;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.core.update.UpdateNoticeService;
 import me.foesio.foSellwands.command.FoSellwandsCommand;
 import me.foesio.foSellwands.config.ConfigManager;
@@ -26,6 +30,9 @@ public final class FoSellwands extends JavaPlugin {
     private ConfigManager configManager;
     private FoMessageService messages;
     private FoReloadRegistry reloadRegistry;
+    private FoSoundService sounds;
+    private FoEditorSounds editorSounds;
+    private FoAdminSounds adminSounds;
     private EconomyService economyService;
     private ShopPriceService shopPriceService;
     private FoFileLogger fileLogger;
@@ -46,6 +53,9 @@ public final class FoSellwands extends JavaPlugin {
         this.core = FoPluginCore.create(this);
         this.core.warnIfNativeDialogsUnavailable();
         this.core.metrics(33184);
+        this.sounds = core.createSounds(soundMigrations());
+        this.editorSounds = FoEditorSounds.create(sounds);
+        this.adminSounds = FoAdminSounds.create(sounds);
         this.messages = FoMessageService.load(this, messageMigrations());
         this.fileLogger = FoFileLogger.create(this);
         this.fileLogger.configure(configManager.config().getBoolean("file-logging", false), true);
@@ -56,8 +66,8 @@ public final class FoSellwands extends JavaPlugin {
         this.historyService = new HistoryService(this, configManager, core.scheduler(), fileLogger);
         this.hologramService = new HologramService(this, configManager, messages);
         this.wandService = new WandService(this, configManager, economyService);
-        this.sellService = new SellService(this, configManager, messages, economyService, shopPriceService, protectionService, wandService, historyService, hologramService, fileLogger);
-        this.editorManager = new EditorManager(this, configManager, messages, wandService, fileLogger);
+        this.sellService = new SellService(this, configManager, messages, sounds, economyService, shopPriceService, protectionService, wandService, historyService, hologramService, fileLogger);
+        this.editorManager = new EditorManager(this, configManager, messages, sounds, editorSounds, wandService, fileLogger);
         this.wandInventoryGuard = new WandInventoryGuard(configManager, wandService);
 
         if (!economyService.setup()) {
@@ -67,10 +77,11 @@ public final class FoSellwands extends JavaPlugin {
             return;
         }
 
-        this.updateNotices = core.createUpdateNotices(messages, "fosellwands");
+        this.updateNotices = core.createUpdateNotices(messages, "fosellwands", adminSounds);
         this.reloadRegistry = FoReloadRegistry.create()
                 .add("config", configManager::load)
                 .add("file-logging", this::reloadFileLogging)
+                .add("sounds", sounds::reload)
                 .addMessages(messages)
                 .add("dialog-foundation", this::reloadDialogFoundation)
                 .add("protection", protectionService::reload)
@@ -130,6 +141,21 @@ public final class FoSellwands extends JavaPlugin {
                 .build();
     }
 
+    private FoSoundMigrations soundMigrations() {
+        return FoSoundMigrations.create()
+                .add(sounds -> {
+                    boolean changed = sounds.moveFromConfig("feedback.sound", "sell.success");
+                    var migrated = sounds.configuration().getConfigurationSection("sell.success");
+                    if (migrated != null && migrated.contains("sell")) {
+                        migrated.set("sound", migrated.getString("sell"));
+                        migrated.set("sell", null);
+                        changed = true;
+                    }
+                    return changed;
+                })
+                .build();
+    }
+
     public void reloadDialogFoundation() {
         if (core != null) {
             core.close();
@@ -163,5 +189,13 @@ public final class FoSellwands extends JavaPlugin {
 
     public FoFileLogger fileLogger() {
         return fileLogger;
+    }
+
+    public FoSoundService sounds() {
+        return sounds;
+    }
+
+    public FoAdminSounds adminSounds() {
+        return adminSounds;
     }
 }

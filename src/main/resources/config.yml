@@ -49,11 +49,6 @@ feedback:
     fade-in: 5
     stay: 35
     fade-out: 10
-  sound:
-    enabled: true
-    sell: ENTITY_PLAYER_LEVELUP
-    volume: 0.8
-    pitch: 1.25
   particle:
     enabled: true
     sell: HAPPY_VILLAGER

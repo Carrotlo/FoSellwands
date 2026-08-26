@@ -25,6 +25,8 @@ import me.foesio.core.material.MaterialChooserRequest;
 import me.foesio.core.material.MaterialSelections;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.number.LargeNumberParser;
+import me.foesio.core.sound.FoEditorSounds;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.core.text.FoText;
 import me.foesio.foSellwands.FoSellwands;
 import me.foesio.foSellwands.config.ConfigManager;
@@ -59,6 +61,8 @@ public final class EditorManager implements Listener {
     private final FoSellwands plugin;
     private final ConfigManager configManager;
     private final FoMessageService messages;
+    private final FoSoundService sounds;
+    private final FoEditorSounds editorSounds;
     private final WandService wandService;
     private final FoFileLogger fileLogger;
     private final EditorSettingSaver settingSaver;
@@ -68,12 +72,16 @@ public final class EditorManager implements Listener {
             FoSellwands plugin,
             ConfigManager configManager,
             FoMessageService messages,
+            FoSoundService sounds,
+            FoEditorSounds editorSounds,
             WandService wandService,
             FoFileLogger fileLogger
     ) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.messages = messages;
+        this.sounds = sounds;
+        this.editorSounds = editorSounds;
         this.wandService = wandService;
         this.fileLogger = fileLogger;
         this.settingSaver = new EditorSettingSaver(plugin, () -> { });
@@ -84,6 +92,10 @@ public final class EditorManager implements Listener {
     }
 
     public void openMain(Player player) {
+        openMain(player, true);
+    }
+
+    private void openMain(Player player, boolean playOpenSound) {
         fileLogger.debug("Editor opened by " + player.getName() + ". Native dialogs="
                 + plugin.core().nativeDialogs().canUseNativeDialogs() + ".");
         MenuHolder holder = new MenuHolder(MenuType.MAIN, null);
@@ -112,7 +124,7 @@ public final class EditorManager implements Listener {
                 "Show sale feedback above the hotbar."));
         inventory.setItem(30, toggleItem("Title", configManager.config().getBoolean("feedback.title.enabled", false),
                 "Show sale feedback as a title."));
-        inventory.setItem(25, toggleItem("Sound", configManager.config().getBoolean("feedback.sound.enabled", true),
+        inventory.setItem(25, toggleItem("Sale Sound", sounds.find("sell.success").map(sound -> sound.enabled()).orElse(true),
                 "Play a sound after selling."));
         inventory.setItem(24, toggleItem("Particle", configManager.config().getBoolean("feedback.particle.enabled", true),
                 "Spawn particles after selling."));
@@ -122,14 +134,21 @@ public final class EditorManager implements Listener {
                 "Write debug activity to logs/latest.log."));
         inventory.setItem(19, toggleItem("Native Dialogs", plugin.core().nativeDialogs().configEnabled(),
                 "Use Paper dialog inputs when supported."));
+        if (playOpenSound) {
+            editorSounds.open(player);
+        }
         player.openInventory(inventory);
     }
 
     private void openWands(Player player) {
-        openWands(player, 0, "");
+        openWands(player, 0, "", true);
     }
 
     private void openWands(Player player, int requestedPage, String query) {
+        openWands(player, requestedPage, query, true);
+    }
+
+    private void openWands(Player player, int requestedPage, String query, boolean playOpenSound) {
         String normalizedQuery = query == null ? "" : query.toLowerCase(Locale.ROOT).trim();
         List<EntryBrowserRequest.Entry> entries = wandService.tierIds().stream()
                 .filter(tier -> normalizedQuery.isBlank() || tier.toLowerCase(Locale.ROOT).contains(normalizedQuery))
@@ -151,9 +170,16 @@ public final class EditorManager implements Listener {
                 .showBack(true)
                 .addButton(EditorItemFactory.item(Material.ANVIL, "#3ecf8eAdd Sellwand", List.of("#ffffffCreate a new sellwand tier.")))
                 .build());
+        if (playOpenSound) {
+            editorSounds.open(player);
+        }
     }
 
     private void openTier(Player player, String tier) {
+        openTier(player, tier, true);
+    }
+
+    private void openTier(Player player, String tier, boolean playOpenSound) {
         MenuHolder holder = new MenuHolder(MenuType.TIER, tier);
         Inventory inventory = Bukkit.createInventory(holder, 27, title("&8{tier} ᴇᴅɪᴛᴏʀ").replace("{tier}", tier));
         holder.inventory = inventory;
@@ -172,10 +198,14 @@ public final class EditorManager implements Listener {
         inventory.setItem(15, EditorItemFactory.item(Material.PAPER, "#03fc88Uses", List.of("#ffffffCurrent: #03fc88" + wandService.tierUses(tier))));
         inventory.setItem(16, EditorItemFactory.item(Material.LAVA_BUCKET, "#ff5d73Delete Sellwand", List.of("#ffffffOpen delete confirmation.")));
         inventory.setItem(GuiSlots.bottomMiddleSlot(3), BUTTONS.back());
+        if (playOpenSound) {
+            editorSounds.open(player);
+        }
         player.openInventory(inventory);
     }
 
     private void openContainers(Player player) {
+        editorSounds.open(player);
         MaterialChooserMenus.open(player, containerRequest());
     }
 
@@ -240,6 +270,7 @@ public final class EditorManager implements Listener {
         inventory.setItem(11, EditorItemFactory.item(Material.LIME_DYE, "#3ecf8eConfirm", List.of("#ffffffDelete this sellwand.")));
         inventory.setItem(13, EditorItemFactory.item(Material.LAVA_BUCKET, "#ff5d73" + tier, List.of("#ffffffDelete this sellwand tier.")));
         inventory.setItem(15, EditorItemFactory.item(Material.RED_DYE, "#ff5d73Cancel", List.of("#ffffffKeep this sellwand.")));
+        editorSounds.open(player);
         player.openInventory(inventory);
     }
 
@@ -302,29 +333,29 @@ public final class EditorManager implements Listener {
         switch (slot) {
             case 10 -> openWands(player);
             case 11 -> openContainers(player);
-            case 14 -> toggle(player, "permissions.per-tier", "tier-permissions", () -> openMain(player));
-            case 15 -> toggle(player, "settings.confirm-to-sell", "confirm-to-sell", () -> openMain(player));
-            case 16 -> toggle(player, "breakdown.enabled", "breakdown", () -> openMain(player));
-            case 22 -> toggle(player, "settings.nested-containers", "nested-containers", () -> openMain(player));
-            case 23 -> toggle(player, "settings.sell-empty-container-shells", "sell-empty-container-shells", () -> openMain(player));
-            case 12 -> cycle(player, "settings.click-mode", "click-mode", CLICK_MODES, () -> openMain(player));
-            case 13 -> toggle(player, "cooldown.enabled", "cooldown", () -> openMain(player));
-            case 28 -> toggle(player, "protection.worldguard", "worldguard", () -> openMain(player));
-            case 29 -> toggle(player, "feedback.actionbar.enabled", "actionbar", () -> openMain(player));
-            case 30 -> toggle(player, "feedback.title.enabled", "title", () -> openMain(player));
-            case 25 -> toggle(player, "feedback.sound.enabled", "sound", () -> openMain(player));
-            case 24 -> toggle(player, "feedback.particle.enabled", "particle", () -> openMain(player));
-            case 21 -> toggle(player, "feedback.hologram.enabled", "hologram", () -> openMain(player));
+            case 14 -> toggle(player, "permissions.per-tier", "tier-permissions", () -> openMain(player, false));
+            case 15 -> toggle(player, "settings.confirm-to-sell", "confirm-to-sell", () -> openMain(player, false));
+            case 16 -> toggle(player, "breakdown.enabled", "breakdown", () -> openMain(player, false));
+            case 22 -> toggle(player, "settings.nested-containers", "nested-containers", () -> openMain(player, false));
+            case 23 -> toggle(player, "settings.sell-empty-container-shells", "sell-empty-container-shells", () -> openMain(player, false));
+            case 12 -> cycle(player, "settings.click-mode", "click-mode", CLICK_MODES, () -> openMain(player, false));
+            case 13 -> toggle(player, "cooldown.enabled", "cooldown", () -> openMain(player, false));
+            case 28 -> toggle(player, "protection.worldguard", "worldguard", () -> openMain(player, false));
+            case 29 -> toggle(player, "feedback.actionbar.enabled", "actionbar", () -> openMain(player, false));
+            case 30 -> toggle(player, "feedback.title.enabled", "title", () -> openMain(player, false));
+            case 25 -> toggleSound(player, () -> openMain(player, false));
+            case 24 -> toggle(player, "feedback.particle.enabled", "particle", () -> openMain(player, false));
+            case 21 -> toggle(player, "feedback.hologram.enabled", "hologram", () -> openMain(player, false));
             case 20 -> toggle(player, "file-logging", "file-logging", () -> {
                 syncFileLogging();
                 if (configManager.config().getBoolean("file-logging", false)) {
                     fileLogger.info("Editor enabled file logging by " + player.getName() + ".");
                 }
-                openMain(player);
+                openMain(player, false);
             });
             case 19 -> toggle(player, "native-dialogs.enabled", "native-dialogs", () -> {
                 plugin.reloadDialogFoundation();
-                openMain(player);
+                openMain(player, false);
             });
             default -> {
             }
@@ -336,7 +367,9 @@ public final class EditorManager implements Listener {
         EntryBrowserClick click = EntryBrowserMenus.handleClick(slot, holder);
         switch (click.action()) {
             case ENTRY -> openTier(player, click.entryId());
-            case ADD -> prompt(player, inputRequest(
+            case ADD -> {
+                editorSounds.add(player);
+                prompt(player, inputRequest(
                     "#03fc88New Sellwand",
                     "#a7b8b0Enter a new tier id.",
                     "#ffffffTier ID",
@@ -344,8 +377,12 @@ public final class EditorManager implements Listener {
                     "new tier id, example epic",
                     DialogButton.save(),
                     96
-            ), () -> openWands(player, request.page(), request.filter()), input -> createTier(player, input));
-            case BACK -> openMain(player);
+                ), () -> openWands(player, request.page(), request.filter(), false), input -> createTier(player, input));
+            }
+            case BACK -> {
+                editorSounds.back(player);
+                openMain(player, false);
+            }
             case SEARCH -> prompt(player, inputRequest(
                     "Search",
                     "#a7b8b0Filter sellwand tiers.",
@@ -354,16 +391,24 @@ public final class EditorManager implements Listener {
                     "search text",
                     DialogButton.search("Apply"),
                     64
-            ), () -> openWands(player, request.page(), request.filter()), input -> {
-                openWands(player, 0, input);
+            ), () -> openWands(player, request.page(), request.filter(), false), input -> {
+                openWands(player, 0, input, false);
+                editorSounds.search(player);
                 messages.send(player, "messages.editor-search", "{prefix}{muted}Search set to {theme}{query}{muted}.", Map.of("query", input));
             });
             case CLEAR_SEARCH -> {
-                openWands(player, 0, "");
+                openWands(player, 0, "", false);
+                editorSounds.clearSearch(player);
                 messages.send(player, "messages.editor-search-cleared", "{prefix}{muted}Search cleared.");
             }
-            case PREVIOUS_PAGE -> openWands(player, request.page() - 1, request.filter());
-            case NEXT_PAGE -> openWands(player, request.page() + 1, request.filter());
+            case PREVIOUS_PAGE -> {
+                editorSounds.previousPage(player);
+                openWands(player, request.page() - 1, request.filter(), false);
+            }
+            case NEXT_PAGE -> {
+                editorSounds.nextPage(player);
+                openWands(player, request.page() + 1, request.filter(), false);
+            }
             case NONE -> {
             }
         }
@@ -371,19 +416,21 @@ public final class EditorManager implements Listener {
 
     private void clickTier(Player player, String tier, int slot, ItemStack cursor) {
         if (tier == null || !wandService.isTier(tier)) {
-            openWands(player);
+            editorSounds.error(player);
+            openWands(player, 0, "", false);
             return;
         }
         switch (slot) {
             case 10 -> {
                 if (cursor != null && !cursor.getType().isAir()) {
                     saveCursorItem(player, tier, cursor);
-                    openTier(player, tier);
+                    editorSounds.addItem(player);
+                    openTier(player, tier, false);
                 } else {
-                    promptMaterial(player, tier, () -> openTier(player, tier));
+                    promptMaterial(player, tier, () -> openTier(player, tier, false));
                 }
             }
-            case 11 -> toggleTier(player, tier, "glow", tier + ".glow", () -> openTier(player, tier));
+            case 11 -> toggleTier(player, tier, "glow", tier + ".glow", () -> openTier(player, tier, false));
             case 12 -> prompt(player, inputRequest(
                     "#03fc88Custom Model Data",
                     "#a7b8b0Enter custom model data, or 0 to disable.",
@@ -392,14 +439,16 @@ public final class EditorManager implements Listener {
                     "custom model data number, or 0 to disable",
                     DialogButton.save(),
                     32
-            ), () -> openTier(player, tier), input -> {
+            ), () -> openTier(player, tier, false), input -> {
                 Integer value = parseInteger(input);
                 if (value != null && value >= 0) {
                     saveTier(player, tier, "custom-model-data", value, tier + ".custom-model-data");
+                    editorSounds.save(player);
                 } else {
+                    editorSounds.error(player);
                     messages.send(player, "messages.invalid-number", "{prefix}{bad}That number is invalid.");
                 }
-                openTier(player, tier);
+                openTier(player, tier, false);
             });
             case 14 -> prompt(player, inputRequest(
                     "#03fc88Multiplier",
@@ -409,14 +458,16 @@ public final class EditorManager implements Listener {
                     "decimal multiplier, example 1.5",
                     DialogButton.save(),
                     32
-            ), () -> openTier(player, tier), input -> {
+            ), () -> openTier(player, tier, false), input -> {
                 Double value = parseDouble(input);
                 if (value != null && value > 0) {
                     saveTier(player, tier, "multiplier", value, tier + ".multiplier");
+                    editorSounds.save(player);
                 } else {
+                    editorSounds.error(player);
                     messages.send(player, "messages.invalid-number", "{prefix}{bad}That number is invalid.");
                 }
-                openTier(player, tier);
+                openTier(player, tier, false);
             });
             case 15 -> prompt(player, inputRequest(
                     "#03fc88Uses",
@@ -426,17 +477,22 @@ public final class EditorManager implements Listener {
                     "uses number, or -1 for unlimited",
                     DialogButton.save(),
                     32
-            ), () -> openTier(player, tier), input -> {
+            ), () -> openTier(player, tier, false), input -> {
                 Integer value = parseInteger(input);
                 if (value != null && (value == -1 || value > 0)) {
                     saveTier(player, tier, "uses", value, tier + ".uses");
+                    editorSounds.save(player);
                 } else {
+                    editorSounds.error(player);
                     messages.send(player, "messages.invalid-number", "{prefix}{bad}That number is invalid.");
                 }
-                openTier(player, tier);
+                openTier(player, tier, false);
             });
             case 16 -> openDeleteConfirm(player, tier);
-            case 22 -> openWands(player);
+            case 22 -> {
+                editorSounds.back(player);
+                openWands(player, 0, "", false);
+            }
             default -> {
             }
         }
@@ -445,7 +501,8 @@ public final class EditorManager implements Listener {
     private void clickConfirmDelete(Player player, String tier, int slot) {
         if (tier == null || !wandService.isTier(tier)) {
             suppressConfirmClose.add(player.getUniqueId());
-            openWands(player);
+            editorSounds.error(player);
+            openWands(player, 0, "", false);
             return;
         }
         if (slot == 11) {
@@ -455,15 +512,17 @@ public final class EditorManager implements Listener {
         }
         if (slot == 15) {
             suppressConfirmClose.add(player.getUniqueId());
+            editorSounds.back(player);
             messages.send(player, "messages.editor-cancelled", "{prefix}{muted}Cancelled.");
-            openTier(player, tier);
+            openTier(player, tier, false);
         }
     }
 
     private void clickContainers(Player player, MaterialChooserHolder holder, int slot) {
         MaterialChooserClick click = MaterialChooserMenus.handleClick(slot, holder);
         if (click.action() == MaterialChooserActionType.BACK) {
-            openMain(player);
+            editorSounds.back(player);
+            openMain(player, false);
             return;
         }
         if (click.action() == MaterialChooserActionType.SEARCH) {
@@ -475,17 +534,27 @@ public final class EditorManager implements Listener {
                     "container material",
                     DialogButton.search("Apply"),
                     64
-            ), () -> MaterialChooserMenus.open(player, holder.request()), input ->
-                    MaterialChooserMenus.open(player, holder.request().withFilter(input)));
+            ), () -> MaterialChooserMenus.open(player, holder.request()), input -> {
+                editorSounds.search(player);
+                MaterialChooserMenus.open(player, holder.request().withFilter(input));
+            });
             return;
         }
         if (click.action() == MaterialChooserActionType.NEXT_PAGE && click.nextRequest().page() == 1) {
+            editorSounds.nextPage(player);
             openContainerPageTwo(player, click.nextRequest());
             return;
         }
         if (click.action() == MaterialChooserActionType.CLEAR_SEARCH
                 || click.action() == MaterialChooserActionType.PREVIOUS_PAGE
                 || click.action() == MaterialChooserActionType.NEXT_PAGE) {
+            if (click.action() == MaterialChooserActionType.CLEAR_SEARCH) {
+                editorSounds.clearSearch(player);
+            } else if (click.action() == MaterialChooserActionType.PREVIOUS_PAGE) {
+                editorSounds.previousPage(player);
+            } else {
+                editorSounds.nextPage(player);
+            }
             MaterialChooserMenus.open(player, click.nextRequest());
             return;
         }
@@ -496,6 +565,7 @@ public final class EditorManager implements Listener {
         String path = "containers.enabled." + material.name();
         boolean enabled = !holder.request().isSelected(material);
         if (save(player, path, enabled, material.name())) {
+            editorSounds.toggle(player, enabled);
             MaterialChooserMenus.open(player, holder.request().withSelectedMaterials(
                     MaterialSelections.toggled(holder.request().selectedMaterials(), material)));
         }
@@ -506,11 +576,13 @@ public final class EditorManager implements Listener {
             return;
         }
         if (slot == 18) {
+            editorSounds.previousPage(player);
             MaterialChooserMenus.open(player, holder.request().withPage(0));
             return;
         }
         if (slot == GuiSlots.bottomMiddleSlot(3)) {
-            openMain(player);
+            editorSounds.back(player);
+            openMain(player, false);
             return;
         }
         if (slot == 24) {
@@ -522,11 +594,14 @@ public final class EditorManager implements Listener {
                     "container material",
                     DialogButton.search("Apply"),
                     64
-            ), () -> openContainerPageTwo(player, holder.request()), input ->
-                    MaterialChooserMenus.open(player, holder.request().withFilter(input)));
+            ), () -> openContainerPageTwo(player, holder.request()), input -> {
+                editorSounds.search(player);
+                MaterialChooserMenus.open(player, holder.request().withFilter(input));
+            });
             return;
         }
         if (slot == 25 && !holder.request().filter().isBlank()) {
+            editorSounds.clearSearch(player);
             MaterialChooserMenus.open(player, holder.request().withFilter(""));
             return;
         }
@@ -539,6 +614,7 @@ public final class EditorManager implements Listener {
         String path = "containers.enabled." + material.name();
         boolean enabled = !holder.request().isSelected(material);
         if (save(player, path, enabled, material.name())) {
+            editorSounds.toggle(player, enabled);
             openContainerPageTwo(player, holder.request().withSelectedMaterials(
                     MaterialSelections.toggled(holder.request().selectedMaterials(), material)));
         }
@@ -557,38 +633,43 @@ public final class EditorManager implements Listener {
         }
         messages.send(player, "messages.editor-cancelled", "{prefix}{muted}Cancelled.");
         if (holder.value != null && player.isOnline() && wandService.isTier(holder.value)) {
-            plugin.core().scheduler().runGlobal(() -> openTier(player, holder.value));
+            plugin.core().scheduler().runGlobal(() -> openTier(player, holder.value, false));
         }
     }
 
     private void createTier(Player player, String input) {
         String tier = normalizeTier(input);
         if (tier == null) {
+            editorSounds.error(player);
             messages.send(player, "messages.invalid-id", "{prefix}{bad}Use a tier ID with 2-32 letters, numbers, dashes, or underscores.");
-            openWands(player);
+            openWands(player, 0, "", false);
             return;
         }
         if (wandService.isTier(tier)) {
+            editorSounds.error(player);
             messages.send(player, "messages.tier-exists", "{prefix}{bad}That sellwand already exists.");
-            openWands(player);
+            openWands(player, 0, "", false);
             return;
         }
         configManager.createSellwand(tier);
         fileLogger.info("Editor created sellwand tier " + tier + " by " + player.getName() + ".");
+        editorSounds.add(player);
         messages.send(player, "messages.editor-created", "{prefix}{good}Created sellwand {theme}{tier}{muted}.", Map.of("tier", tier));
-        openTier(player, tier);
+        openTier(player, tier, false);
     }
 
     private void deleteTier(Player player, String tier) {
         if (wandService.tierIds().size() <= 1) {
+            editorSounds.error(player);
             messages.send(player, "messages.cannot-delete-last-tier", "{prefix}{bad}You must keep at least one sellwand.");
-            openTier(player, tier);
+            openTier(player, tier, false);
             return;
         }
         configManager.deleteSellwand(tier);
         fileLogger.info("Editor deleted sellwand tier " + tier + " by " + player.getName() + ".");
+        editorSounds.delete(player);
         messages.send(player, "messages.editor-deleted", "{prefix}{good}Deleted sellwand {theme}{tier}{muted}.", Map.of("tier", tier));
-        openWands(player);
+        openWands(player, 0, "", false);
     }
 
     private void promptMaterial(Player player, String tier, Runnable reopen) {
@@ -603,9 +684,11 @@ public final class EditorManager implements Listener {
         ), reopen, input -> {
             Material material = MaterialTypes.match(input);
             if (material == null || material.isAir()) {
+                editorSounds.error(player);
                 messages.send(player, "messages.invalid-material", "{prefix}{bad}That material is invalid.");
             } else {
                 saveTier(player, tier, "material", material.name(), tier + ".material");
+                editorSounds.save(player);
             }
             reopen.run();
         });
@@ -631,6 +714,7 @@ public final class EditorManager implements Listener {
 
     private void prompt(Player player, TextDialogRequest request, Runnable reopen, Consumer<String> consumer) {
         Runnable onCancel = () -> {
+            editorSounds.back(player);
             messages.send(player, "messages.editor-cancelled", "{prefix}{muted}Cancelled.");
             reopen.run();
         };
@@ -673,7 +757,9 @@ public final class EditorManager implements Listener {
 
     private void toggle(Player player, String path, String setting, Runnable reopen) {
         boolean newValue = !configManager.config().getBoolean(path, false);
-        save(player, path, newValue, setting);
+        if (save(player, path, newValue, setting)) {
+            editorSounds.toggle(player, newValue);
+        }
         reopen.run();
     }
 
@@ -681,19 +767,35 @@ public final class EditorManager implements Listener {
         String current = configManager.config().getString(path, options.getFirst());
         int index = options.indexOf(current);
         String next = options.get((index + 1) % options.size());
-        save(player, path, next, setting);
+        if (save(player, path, next, setting)) {
+            editorSounds.cycle(player);
+        }
         reopen.run();
     }
 
     private void toggleTier(Player player, String tier, String path, String setting, Runnable reopen) {
         boolean newValue = !tierBoolean(tier, path, false);
         saveTier(player, tier, path, newValue, setting);
+        editorSounds.toggle(player, newValue);
+        reopen.run();
+    }
+
+    private void toggleSound(Player player, Runnable reopen) {
+        boolean newValue = !sounds.find("sell.success").map(sound -> sound.enabled()).orElse(true);
+        if (sounds.setEnabled("sell.success", newValue)) {
+            editorSounds.toggle(player, newValue);
+            messages.send(player, "messages.editor-saved", "{prefix}{good}Saved {theme}sale-sound{muted}.");
+        } else {
+            editorSounds.error(player);
+            messages.send(player, "messages.editor-save-failed", "{prefix}{bad}The setting could not be saved.");
+        }
         reopen.run();
     }
 
     private boolean save(Player player, String path, Object value, String setting) {
         EditorSaveResult result = settingSaver.save(path, value);
         if (!result.successful()) {
+            editorSounds.error(player);
             fileLogger.warn("Editor could not save config " + path + ": " + result.errorMessage());
             messages.send(player, "messages.editor-save-failed", "{prefix}{bad}The setting could not be saved.");
             return false;
@@ -703,10 +805,11 @@ public final class EditorManager implements Listener {
         return true;
     }
 
-    private void saveTier(Player player, String tier, String path, Object value, String setting) {
+    private boolean saveTier(Player player, String tier, String path, Object value, String setting) {
         configManager.setSellwandValue(tier, path, value);
         fileLogger.info("Editor saved sellwand " + tier + "." + path + "=" + value + " by " + player.getName() + ".");
         messages.send(player, "messages.editor-saved", "{prefix}{good}Saved {theme}{setting}{muted}.", Map.of("setting", setting));
+        return true;
     }
 
     private ItemStack toggleItem(String name, boolean enabled, String description) {
