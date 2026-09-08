@@ -24,6 +24,7 @@ import me.foesio.core.material.MaterialChooserMode;
 import me.foesio.core.material.MaterialChooserRequest;
 import me.foesio.core.material.MaterialSelections;
 import me.foesio.core.message.FoMessageService;
+import me.foesio.core.message.FoStyle;
 import me.foesio.core.number.LargeNumberParser;
 import me.foesio.core.sound.FoEditorSounds;
 import me.foesio.core.sound.FoSoundService;
@@ -97,42 +98,42 @@ public final class EditorManager implements Listener {
 
     private void openMain(Player player, boolean playOpenSound) {
         fileLogger.debug("Editor opened by " + player.getName() + ". Native dialogs="
-                + plugin.core().nativeDialogs().canUseNativeDialogs() + ".");
+                + plugin.core().nativeDialogs().canUseNativeDialogs(player) + ".");
         MenuHolder holder = new MenuHolder(MenuType.MAIN, null);
         Inventory inventory = Bukkit.createInventory(holder, 45, title("&8ғᴏsᴇʟʟᴡᴀɴᴅs"));
         holder.inventory = inventory;
         fill(inventory);
 
-        inventory.setItem(10, EditorItemFactory.item(Material.GOLDEN_HOE, "#03fc88Sellwands", List.of("#ffffffAdd, remove, and edit sellwand tiers.")));
-        inventory.setItem(11, EditorItemFactory.item(Material.CHEST, "#03fc88Containers", List.of("#ffffffEnable or disable container types.")));
-        inventory.setItem(14, toggleItem("Tier Permissions", configManager.config().getBoolean("permissions.per-tier", false),
+        inventory.setItem(10, button(player, FoStyle.THEME, Material.GOLDEN_HOE, "Sellwands", List.of("#ffffffAdd, remove, and edit sellwand tiers."), "manage sellwands"));
+        inventory.setItem(11, button(player, FoStyle.THEME, Material.CHEST, "Containers", List.of("#ffffffEnable or disable container types."), "configure containers"));
+        inventory.setItem(14, toggleItem(player, "Tier Permissions", configManager.config().getBoolean("permissions.per-tier", false),
                 "Require fosellwands.use.<tier>."));
-        inventory.setItem(15, toggleItem("Confirm Selling", configManager.config().getBoolean("settings.confirm-to-sell", false),
+        inventory.setItem(15, toggleItem(player, "Confirm Selling", configManager.config().getBoolean("settings.confirm-to-sell", false),
                 "Require a second click before selling."));
-        inventory.setItem(16, toggleItem("Breakdown", configManager.config().getBoolean("breakdown.enabled", true),
+        inventory.setItem(16, toggleItem(player, "Breakdown", configManager.config().getBoolean("breakdown.enabled", true),
                 "Show item totals after selling."));
-        inventory.setItem(22, toggleItem("Nested Containers", configManager.config().getBoolean("settings.nested-containers", true),
+        inventory.setItem(22, toggleItem(player, "Nested Containers", configManager.config().getBoolean("settings.nested-containers", true),
                 "Sell contents inside shulkers and bundles."));
-        inventory.setItem(23, toggleItem("Sell Empty Shells", configManager.config().getBoolean("settings.sell-empty-container-shells", false),
+        inventory.setItem(23, toggleItem(player, "Sell Empty Shells", configManager.config().getBoolean("settings.sell-empty-container-shells", false),
                 "Sell empty shulker or bundle shells when priced."));
-        inventory.setItem(12, cycleItem("Click Mode", configManager.config().getString("settings.click-mode", CLICK_MODES.getFirst()), CLICK_MODES));
-        inventory.setItem(13, toggleItem("Cooldown", configManager.config().getBoolean("cooldown.enabled", false),
+        inventory.setItem(12, cycleItem(player, "Click Mode", configManager.config().getString("settings.click-mode", CLICK_MODES.getFirst()), CLICK_MODES));
+        inventory.setItem(13, toggleItem(player, "Cooldown", configManager.config().getBoolean("cooldown.enabled", false),
                 "Limit successful sales per player."));
-        inventory.setItem(28, toggleItem("WorldGuard", configManager.config().getBoolean("protection.worldguard", true),
+        inventory.setItem(28, toggleItem(player, "WorldGuard", configManager.config().getBoolean("protection.worldguard", true),
                 "Respect WorldGuard container access."));
-        inventory.setItem(29, toggleItem("Actionbar", configManager.config().getBoolean("feedback.actionbar.enabled", true),
+        inventory.setItem(29, toggleItem(player, "Actionbar", configManager.config().getBoolean("feedback.actionbar.enabled", true),
                 "Show sale feedback above the hotbar."));
-        inventory.setItem(30, toggleItem("Title", configManager.config().getBoolean("feedback.title.enabled", false),
+        inventory.setItem(30, toggleItem(player, "Title", configManager.config().getBoolean("feedback.title.enabled", false),
                 "Show sale feedback as a title."));
-        inventory.setItem(25, toggleItem("Sale Sound", sounds.find("sell.success").map(sound -> sound.enabled()).orElse(true),
+        inventory.setItem(25, toggleItem(player, "Sale Sound", sounds.find("sell.success").map(sound -> sound.enabled()).orElse(true),
                 "Play a sound after selling."));
-        inventory.setItem(24, toggleItem("Particle", configManager.config().getBoolean("feedback.particle.enabled", true),
+        inventory.setItem(24, toggleItem(player, "Particle", configManager.config().getBoolean("feedback.particle.enabled", true),
                 "Spawn particles after selling."));
-        inventory.setItem(21, toggleItem("Hologram", configManager.config().getBoolean("feedback.hologram.enabled", false),
+        inventory.setItem(21, toggleItem(player, "Hologram", configManager.config().getBoolean("feedback.hologram.enabled", false),
                 "Spawn temporary sale holograms."));
-        inventory.setItem(20, toggleItem("File Logging", configManager.config().getBoolean("file-logging", false),
+        inventory.setItem(20, toggleItem(player, "File Logging", configManager.config().getBoolean("file-logging", false),
                 "Write debug activity to logs/latest.log."));
-        inventory.setItem(19, toggleItem("Native Dialogs", plugin.core().nativeDialogs().configEnabled(),
+        inventory.setItem(19, toggleItem(player, "Native Dialogs", plugin.core().nativeDialogs().configEnabled(),
                 "Use Paper dialog inputs when supported."));
         if (playOpenSound) {
             editorSounds.open(player);
@@ -152,14 +153,14 @@ public final class EditorManager implements Listener {
         String normalizedQuery = query == null ? "" : query.toLowerCase(Locale.ROOT).trim();
         List<EntryBrowserRequest.Entry> entries = wandService.tierIds().stream()
                 .filter(tier -> normalizedQuery.isBlank() || tier.toLowerCase(Locale.ROOT).contains(normalizedQuery))
-                .map(tier -> EntryBrowserRequest.Entry.of(tier, EditorItemFactory.item(wandService.tierMaterial(tier), "#03fc88" + tier,
+                .map(tier -> EntryBrowserRequest.Entry.of(tier, button(player, FoStyle.THEME, wandService.tierMaterial(tier), tier,
                         List.of(
                                 "#ffffffMultiplier: #03fc88" + wandService.tierMultiplier(tier) + "x",
                                 "#ffffffUses: #03fc88" + wandService.tierUses(tier),
                                 "#ffffffPermission: #03fc88fosellwands.use." + tier,
                                 "",
                                 "#a7b8b0Click to edit."
-                        ))))
+                        ), "edit the sellwand")))
                 .toList();
         EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
                 .title("Sellwands")
@@ -168,7 +169,7 @@ public final class EditorManager implements Listener {
                 .filter(normalizedQuery)
                 .buttons(BUTTONS)
                 .showBack(true)
-                .addButton(EditorItemFactory.item(Material.ANVIL, "#3ecf8eAdd Sellwand", List.of("#ffffffCreate a new sellwand tier.")))
+                .addButton(button(player, FoStyle.GOOD, Material.ANVIL, "Add Sellwand", List.of("#ffffffCreate a new sellwand tier."), "add a sellwand"))
                 .build());
         if (playOpenSound) {
             editorSounds.open(player);
@@ -186,18 +187,18 @@ public final class EditorManager implements Listener {
         fill(inventory);
 
         inventory.setItem(4, wandService.createWand(tier));
-        inventory.setItem(10, EditorItemFactory.item(wandService.tierMaterial(tier), "#03fc88Cursor Item", List.of(
+        inventory.setItem(10, button(player, FoStyle.THEME, wandService.tierMaterial(tier), "Cursor Item", List.of(
                 "#ffffffCurrent: #03fc88" + wandService.tierMaterial(tier).name(),
                 "#ffffffHold cursor item and click to copy visuals.",
                 "#a7b8b0Empty cursor opens material prompt."
-        )));
-        inventory.setItem(11, toggleItem("Glow", tierBoolean(tier, "glow", true), "Adds an enchant glint."));
-        inventory.setItem(12, EditorItemFactory.item(Material.ITEM_FRAME, "#03fc88Custom Model Data", List.of("#ffffffCurrent: #03fc88" + tierInt(tier, "custom-model-data", 0))));
-        inventory.setItem(13, EditorItemFactory.item(Material.TRIPWIRE_HOOK, "#03fc88Permission", List.of("#ffffffNode: #03fc88fosellwands.use." + tier, "#a7b8b0Enable tier permissions in the main menu.")));
-        inventory.setItem(14, EditorItemFactory.item(Material.EMERALD, "#03fc88Multiplier", List.of("#ffffffCurrent: #03fc88" + wandService.tierMultiplier(tier) + "x")));
-        inventory.setItem(15, EditorItemFactory.item(Material.PAPER, "#03fc88Uses", List.of("#ffffffCurrent: #03fc88" + wandService.tierUses(tier))));
-        inventory.setItem(16, EditorItemFactory.item(Material.LAVA_BUCKET, "#ff5d73Delete Sellwand", List.of("#ffffffOpen delete confirmation.")));
-        inventory.setItem(GuiSlots.bottomMiddleSlot(3), BUTTONS.back());
+        ), "copy cursor item visuals"));
+        inventory.setItem(11, toggleItem(player, "Glow", tierBoolean(tier, "glow", true), "Adds an enchant glint."));
+        inventory.setItem(12, button(player, FoStyle.THEME, Material.ITEM_FRAME, "Custom Model Data", List.of("#ffffffCurrent: #03fc88" + tierInt(tier, "custom-model-data", 0)), "edit custom model data"));
+        inventory.setItem(13, button(player, FoStyle.THEME, Material.TRIPWIRE_HOOK, "Permission", List.of("#ffffffNode: #03fc88fosellwands.use." + tier, "#a7b8b0Enable tier permissions in the main menu."), "view permission"));
+        inventory.setItem(14, button(player, FoStyle.THEME, Material.EMERALD, "Multiplier", List.of("#ffffffCurrent: #03fc88" + wandService.tierMultiplier(tier) + "x"), "edit multiplier"));
+        inventory.setItem(15, button(player, FoStyle.THEME, Material.PAPER, "Uses", List.of("#ffffffCurrent: #03fc88" + wandService.tierUses(tier)), "edit uses"));
+        inventory.setItem(16, button(player, FoStyle.BAD, Material.LAVA_BUCKET, "Delete Sellwand", List.of("#ffffffOpen delete confirmation."), "delete sellwand"));
+        inventory.setItem(GuiSlots.bottomMiddleSlot(3), BUTTONS.back(player));
         if (playOpenSound) {
             editorSounds.open(player);
         }
@@ -238,7 +239,7 @@ public final class EditorManager implements Listener {
     }
 
     private void openContainerPageTwo(Player player, MaterialChooserRequest request) {
-        Inventory coreInventory = MaterialChooserMenus.createInventory(request);
+        Inventory coreInventory = MaterialChooserMenus.createInventory(player, request);
         if (!(coreInventory.getHolder() instanceof MaterialChooserHolder coreHolder)) {
             MaterialChooserMenus.open(player, request);
             return;
@@ -252,11 +253,11 @@ public final class EditorManager implements Listener {
             inventory.setItem(slot, coreInventory.getItem(slot));
         }
         inventory.setItem(16, EditorItemFactory.item(Material.LIGHT_GRAY_STAINED_GLASS_PANE, " ", List.of()));
-        inventory.setItem(18, BUTTONS.previousPage(coreHolder.request().page(), coreHolder.maxPage()));
-        inventory.setItem(GuiSlots.bottomMiddleSlot(3), BUTTONS.back());
-        inventory.setItem(24, BUTTONS.search(coreHolder.request().filter()));
+        inventory.setItem(18, BUTTONS.previousPage(player, coreHolder.request().page(), coreHolder.maxPage()));
+        inventory.setItem(GuiSlots.bottomMiddleSlot(3), BUTTONS.back(player));
+        inventory.setItem(24, BUTTONS.search(player, coreHolder.request().filter()));
         if (!coreHolder.request().filter().isBlank()) {
-            inventory.setItem(25, BUTTONS.clearSearch("materials"));
+            inventory.setItem(25, BUTTONS.clearSearch(player, "materials"));
         }
         player.openInventory(inventory);
     }
@@ -267,9 +268,9 @@ public final class EditorManager implements Listener {
         holder.inventory = inventory;
         fill(inventory);
 
-        inventory.setItem(11, EditorItemFactory.item(Material.LIME_DYE, "#3ecf8eConfirm", List.of("#ffffffDelete this sellwand.")));
-        inventory.setItem(13, EditorItemFactory.item(Material.LAVA_BUCKET, "#ff5d73" + tier, List.of("#ffffffDelete this sellwand tier.")));
-        inventory.setItem(15, EditorItemFactory.item(Material.RED_DYE, "#ff5d73Cancel", List.of("#ffffffKeep this sellwand.")));
+        inventory.setItem(11, EditorItemFactory.button(player, Material.LIME_DYE, FoStyle.GOOD, "Confirm", List.of("#ffffffDelete this sellwand."), "confirm deletion"));
+        inventory.setItem(13, EditorItemFactory.item(player, Material.LAVA_BUCKET, "#ff5d73" + tier, List.of("#ffffffDelete this sellwand tier.")));
+        inventory.setItem(15, EditorItemFactory.button(player, Material.RED_DYE, FoStyle.BAD, "Cancel", List.of("#ffffffKeep this sellwand."), "cancel deletion"));
         editorSounds.open(player);
         player.openInventory(inventory);
     }
@@ -698,6 +699,7 @@ public final class EditorManager implements Listener {
         ItemStack copy = FoItemStacks.cloneItem(cursor);
         copy.setAmount(1);
         configManager.setSellwandValue(tier, "material", copy.getType().name());
+        configManager.setSellwandValue(tier, "item-stack", me.foesio.core.editor.CursorItemEditor.serializeBase64(copy));
         ItemMeta meta = copy.getItemMeta();
         if (meta != null) {
             if (meta.hasDisplayName()) {
@@ -812,18 +814,22 @@ public final class EditorManager implements Listener {
         return true;
     }
 
-    private ItemStack toggleItem(String name, boolean enabled, String description) {
-        Material material = enabled ? Material.LIME_DYE : Material.RED_DYE;
-        String color = enabled ? "#3ecf8e" : "#ff5d73";
-        String status = enabled ? "Enabled" : "Disabled";
-        return EditorItemFactory.item(material, color + name, List.of("#ffffff" + description, "", color + status));
+    private ItemStack toggleItem(Player player, String name, boolean enabled, String description) {
+        return EditorItemFactory.button(player, enabled ? Material.LIME_DYE : Material.RED_DYE,
+                enabled ? FoStyle.GOOD : FoStyle.BAD, name,
+                List.of("#ffffff" + description, "State: " + (enabled ? "#3ecf8eON" : "#ff5d73OFF")),
+                "toggle " + name.toLowerCase(Locale.ROOT));
     }
 
-    private ItemStack cycleItem(String name, String current, List<String> options) {
+    private ItemStack cycleItem(Player player, String name, String current, List<String> options) {
         List<CycleOption> cycleOptions = options.stream()
                 .map(option -> new CycleOption(option, option))
                 .toList();
-        return EditorItemFactory.cycle(messages, name, current, cycleOptions);
+        return EditorItemFactory.cycle(player, messages, name, current, cycleOptions);
+    }
+
+    private ItemStack button(Player player, String color, Material material, String label, List<String> information, String action) {
+        return EditorItemFactory.button(player, material, color, label, information, action);
     }
 
     private void syncFileLogging() {

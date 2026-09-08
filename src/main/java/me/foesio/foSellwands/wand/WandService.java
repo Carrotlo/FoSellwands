@@ -2,6 +2,7 @@ package me.foesio.foSellwands.wand;
 
 import de.tr7zw.changeme.nbtapi.NBT;
 import de.tr7zw.changeme.nbtapi.iface.ReadableItemNBT;
+import me.foesio.core.editor.CursorItemEditor;
 import me.foesio.core.material.MaterialTypes;
 import me.foesio.core.text.FoText;
 import me.foesio.foSellwands.config.ConfigManager;
@@ -65,7 +66,12 @@ public final class WandService {
     public ItemStack createWand(String id, double multiplier, int uses) {
         String normalized = normalizeTierId(id);
         Material material = templateMaterial(normalized);
-        ItemStack item = new ItemStack(material, 1);
+        ItemStack item = templateItem(normalized);
+        if (item == null) {
+            item = new ItemStack(material, 1);
+        } else {
+            item.setAmount(1);
+        }
         WandData data = new WandData(
                 normalized,
                 UUID.randomUUID(),
@@ -326,6 +332,21 @@ public final class WandService {
                 : tierConfig(firstTierId()).getString("material", "GOLDEN_HOE");
         Material material = MaterialTypes.match(raw);
         return material == null ? Material.GOLDEN_HOE : material;
+    }
+
+    private ItemStack templateItem(String tierId) {
+        String encoded = hasTierValue(tierId, "item-stack")
+                ? tierConfig(tierId).getString("item-stack")
+                : tierConfig(firstTierId()).getString("item-stack");
+        if (encoded == null || encoded.isBlank()) {
+            return null;
+        }
+        try {
+            return CursorItemEditor.deserializeBase64(encoded);
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Could not load configured sellwand item for tier " + tierId + ".");
+            return null;
+        }
     }
 
     private String templateString(String tierId, String child, String fallback) {

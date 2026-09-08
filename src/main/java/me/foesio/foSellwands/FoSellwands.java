@@ -57,6 +57,7 @@ public final class FoSellwands extends JavaPlugin {
         this.editorSounds = FoEditorSounds.create(sounds);
         this.adminSounds = FoAdminSounds.create(sounds);
         this.messages = FoMessageService.load(this, messageMigrations());
+        migrateSprites();
         this.fileLogger = FoFileLogger.create(this);
         this.fileLogger.configure(configManager.config().getBoolean("file-logging", false), true);
         fileLogger.info("Plugin enable started.");
@@ -139,6 +140,25 @@ public final class FoSellwands extends JavaPlugin {
                 .removeExact("messages.version-unknown", "{prefix}{muted}FoSellwands {theme}{version} {muted}Author: {theme}Carrotio{muted}. Latest version unknown.")
                 .removeExact("messages.update-available", "{prefix}{muted}Update available: {theme}{latest} {muted}- {theme}{link}")
                 .build();
+    }
+
+    private void migrateSprites() {
+        messages.migrateToVersion(core.migrations(), 1, config -> {
+            boolean changed = false;
+            changed |= FoMessageService.addMissingToken(config, "tokens.prefix", ":golden_hoe:", null);
+            changed |= FoMessageService.addMissingToken(config, "messages.reload", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "messages.reload-failed", ":redstone:");
+            changed |= FoMessageService.addMissingToken(config, "messages.give", ":gold_ingot:");
+            changed |= FoMessageService.addMissingToken(config, "messages.received", ":gold_ingot:");
+            changed |= FoMessageService.addMissingToken(config, "messages.nothing-sold", ":redstone:");
+            changed |= FoMessageService.addMissingToken(config, "messages.sold", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "messages.wand-broken", ":redstone:");
+            changed |= FoMessageService.addMissingToken(config, "messages.editor-saved", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "messages.editor-created", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "messages.editor-deleted", ":lava_bucket:");
+            return changed;
+        });
+        messages.reload();
     }
 
     private FoSoundMigrations soundMigrations() {
