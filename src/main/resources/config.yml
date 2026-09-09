@@ -29,9 +29,6 @@ permissions:
 breakdown:
   enabled: true
   max-lines: 8
-  header: "{prefix}{muted}Sale breakdown:"
-  line: "{prefix} &8• {theme}{amount}x {item} {muted}= {theme}${price}"
-  more: "{prefix}{muted}And {theme}{amount} {muted}more item types."
 
 history:
   enabled: true
@@ -41,11 +38,8 @@ history:
 feedback:
   actionbar:
     enabled: true
-    sell: "#3ecf8eSold {amount} items for ${price}"
   title:
     enabled: false
-    title: "#03fc88sᴏʟᴅ"
-    subtitle: "#a7b8b0{amount} items for #03fc88${price}"
     fade-in: 5
     stay: 35
     fade-out: 10
@@ -66,9 +60,6 @@ feedback:
     see-through: false
     # 0 is fully transparent. Increase toward 255 if you want a visible background.
     background-alpha: 0
-    lines:
-      - "#03fc88+${price}"
-      - "#ffffff{amount} ɪᴛᴇᴍs #a7b8b0sᴏʟᴅ"
 
 safety:
   block-wand-crafting: true

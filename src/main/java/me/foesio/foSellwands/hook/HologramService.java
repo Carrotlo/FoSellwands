@@ -18,7 +18,6 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public final class HologramService implements Listener {
     private final FoSellwands plugin;
@@ -44,13 +43,14 @@ public final class HologramService implements Listener {
         if (!configManager.config().getBoolean("feedback.hologram.enabled", false)) {
             return;
         }
-        List<String> lines = configManager.config().getStringList("feedback.hologram.lines");
+        List<String> lines = messages.renderList("messages.feedback-hologram-lines", List.of(
+                "#03fc88+${price}",
+                "#ffffff{amount} ɪᴛᴇᴍs #a7b8b0sᴏʟᴅ"
+        ), replacements);
         if (lines.isEmpty()) {
             return;
         }
-        String text = lines.stream()
-                .map(line -> messages.renderTemplate(line, replacements))
-                .collect(Collectors.joining("\n"));
+        String text = String.join("\n", lines);
         Location location = block.getLocation().add(0.5D, configManager.config().getDouble("feedback.hologram.y-offset", 1.35D), 0.5D);
         TextDisplay display = block.getWorld().spawn(location, TextDisplay.class);
         display.setPersistent(false);

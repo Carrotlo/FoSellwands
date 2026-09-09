@@ -55,3 +55,12 @@ messages:
   editor-cancelled: "{prefix}{muted}Cancelled."
   editor-search: "{prefix}{muted}Search set to {theme}{query}{muted}."
   editor-search-cleared: "{prefix}{muted}Search cleared."
+  breakdown-header: "{prefix}{muted}Sale breakdown:"
+  breakdown-line: "{prefix} &8• {theme}{amount}x {item} {muted}= {theme}${price}"
+  breakdown-more: "{prefix}{muted}And {theme}{amount} {muted}more item types."
+  feedback-actionbar-sell: "#3ecf8eSold {amount} items for ${price}"
+  feedback-title-title: "#03fc88sᴏʟᴅ"
+  feedback-title-subtitle: "#a7b8b0{amount} items for #03fc88${price}"
+  feedback-hologram-lines:
+    - "#03fc88+${price}"
+    - "#ffffff{amount} ɪᴛᴇᴍs #a7b8b0sᴏʟᴅ"

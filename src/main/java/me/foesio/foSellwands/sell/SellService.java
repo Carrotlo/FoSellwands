@@ -1,12 +1,12 @@
 package me.foesio.foSellwands.sell;
 
 import me.foesio.core.item.FoItemStacks;
+import me.foesio.core.economy.VaultEconomyBridge;
 import me.foesio.core.logging.FoFileLogger;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.number.DurationParser;
 import me.foesio.core.sound.FoSoundService;
 import me.foesio.foSellwands.config.ConfigManager;
-import me.foesio.foSellwands.hook.EconomyService;
 import me.foesio.foSellwands.hook.HistoryService;
 import me.foesio.foSellwands.hook.HologramService;
 import me.foesio.foSellwands.hook.ProtectionService;
@@ -47,7 +47,7 @@ public final class SellService implements Listener {
     private final ConfigManager configManager;
     private final FoMessageService messages;
     private final FoSoundService sounds;
-    private final EconomyService economyService;
+    private final VaultEconomyBridge economyService;
     private final ShopPriceService shopPriceService;
     private final ProtectionService protectionService;
     private final WandService wandService;
@@ -62,7 +62,7 @@ public final class SellService implements Listener {
             ConfigManager configManager,
             FoMessageService messages,
             FoSoundService sounds,
-            EconomyService economyService,
+            VaultEconomyBridge economyService,
             ShopPriceService shopPriceService,
             ProtectionService protectionService,
             WandService wandService,
@@ -491,33 +491,32 @@ public final class SellService implements Listener {
         if (entries.isEmpty()) {
             return;
         }
-        player.sendMessage(messages.renderTemplate(configManager.config().getString("breakdown.header", "{prefix}{muted}Sale breakdown:"), replacements(result)));
+        messages.send(player, "messages.breakdown-header", "{prefix}{muted}Sale breakdown:", replacements(result));
         int maxLines = Math.max(1, configManager.config().getInt("breakdown.max-lines", 8));
-        String lineFormat = configManager.config().getString("breakdown.line", "{prefix}{amount}x {item} = ${price}");
         for (int i = 0; i < Math.min(entries.size(), maxLines); i++) {
             SellResult.BreakdownEntry entry = entries.get(i);
-            player.sendMessage(messages.renderTemplate(lineFormat, Map.of(
+            messages.send(player, "messages.breakdown-line", "{prefix}{amount}x {item} = ${price}", Map.of(
                     "item", entry.itemName(),
                     "amount", Integer.toString(entry.amount()),
                     "price", wandService.formatMoney(entry.price())
-            )));
+            ));
         }
         int remaining = entries.size() - maxLines;
         if (remaining > 0) {
-            player.sendMessage(messages.renderTemplate(configManager.config().getString("breakdown.more", "{prefix}{muted}And {amount} more item types."), Map.of("amount", Integer.toString(remaining))));
+            messages.send(player, "messages.breakdown-more", "{prefix}{muted}And {amount} more item types.", Map.of("amount", Integer.toString(remaining)));
         }
     }
 
     private void playFeedback(Player player, Block block, SellResult result) {
         Map<String, String> replacements = replacements(result);
         if (configManager.config().getBoolean("feedback.actionbar.enabled", true)) {
-            String raw = configManager.config().getString("feedback.actionbar.sell", "#3ecf8eSold {amount} items for ${price}");
-            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(messages.renderTemplate(raw, replacements)));
+            String raw = messages.render("messages.feedback-actionbar-sell", "#3ecf8eSold {amount} items for ${price}", replacements);
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(raw));
         }
         if (configManager.config().getBoolean("feedback.title.enabled", false)) {
             player.sendTitle(
-                    messages.renderTemplate(configManager.config().getString("feedback.title.title", "#03fc88sᴏʟᴅ"), replacements),
-                    messages.renderTemplate(configManager.config().getString("feedback.title.subtitle", "#a7b8b0{amount} items for #03fc88${price}"), replacements),
+                    messages.render("messages.feedback-title-title", "#03fc88sᴏʟᴅ", replacements),
+                    messages.render("messages.feedback-title-subtitle", "#a7b8b0{amount} items for #03fc88${price}", replacements),
                     configManager.config().getInt("feedback.title.fade-in", 5),
                     configManager.config().getInt("feedback.title.stay", 35),
                     configManager.config().getInt("feedback.title.fade-out", 10)

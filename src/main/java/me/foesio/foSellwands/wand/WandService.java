@@ -6,7 +6,7 @@ import me.foesio.core.editor.CursorItemEditor;
 import me.foesio.core.material.MaterialTypes;
 import me.foesio.core.text.FoText;
 import me.foesio.foSellwands.config.ConfigManager;
-import me.foesio.foSellwands.hook.EconomyService;
+import me.foesio.core.economy.VaultEconomyBridge;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -40,7 +40,7 @@ public final class WandService {
     private final NamespacedKey soldItemsKey;
     private final NamespacedKey soldMoneyKey;
 
-    public WandService(JavaPlugin plugin, ConfigManager configManager, EconomyService economyService) {
+    public WandService(JavaPlugin plugin, ConfigManager configManager, VaultEconomyBridge economyService) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.wandIdKey = new NamespacedKey(plugin, "wand_id");

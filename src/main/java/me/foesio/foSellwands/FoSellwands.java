@@ -3,6 +3,7 @@ package me.foesio.foSellwands;
 import me.foesio.core.FoCoreContext;
 import me.foesio.core.FoPluginCore;
 import me.foesio.core.command.CommandVisibilityService;
+import me.foesio.core.economy.VaultEconomyBridge;
 import me.foesio.core.logging.FoFileLogger;
 import me.foesio.core.message.FoMessageMigrations;
 import me.foesio.core.message.FoMessageService;
@@ -15,7 +16,6 @@ import me.foesio.core.update.UpdateNoticeService;
 import me.foesio.foSellwands.command.FoSellwandsCommand;
 import me.foesio.foSellwands.config.ConfigManager;
 import me.foesio.foSellwands.gui.EditorManager;
-import me.foesio.foSellwands.hook.EconomyService;
 import me.foesio.foSellwands.hook.HistoryService;
 import me.foesio.foSellwands.hook.HologramService;
 import me.foesio.foSellwands.hook.ProtectionService;
@@ -24,6 +24,9 @@ import me.foesio.foSellwands.listener.WandInventoryGuard;
 import me.foesio.foSellwands.sell.SellService;
 import me.foesio.foSellwands.wand.WandService;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.configuration.file.FileConfiguration;
+
+import java.util.List;
 
 public final class FoSellwands extends JavaPlugin {
     private FoCoreContext core;
@@ -33,7 +36,7 @@ public final class FoSellwands extends JavaPlugin {
     private FoSoundService sounds;
     private FoEditorSounds editorSounds;
     private FoAdminSounds adminSounds;
-    private EconomyService economyService;
+    private VaultEconomyBridge economyService;
     private ShopPriceService shopPriceService;
     private FoFileLogger fileLogger;
     private CommandVisibilityService commandVisibility;
@@ -61,7 +64,7 @@ public final class FoSellwands extends JavaPlugin {
         this.fileLogger = FoFileLogger.create(this);
         this.fileLogger.configure(configManager.config().getBoolean("file-logging", false), true);
         fileLogger.info("Plugin enable started.");
-        this.economyService = new EconomyService(this);
+        this.economyService = core.createVaultEconomy();
         this.shopPriceService = new ShopPriceService(this, configManager, fileLogger);
         this.protectionService = new ProtectionService(this, configManager, fileLogger);
         this.historyService = new HistoryService(this, configManager, core.scheduler(), fileLogger);
@@ -71,7 +74,7 @@ public final class FoSellwands extends JavaPlugin {
         this.editorManager = new EditorManager(this, configManager, messages, sounds, editorSounds, wandService, fileLogger);
         this.wandInventoryGuard = new WandInventoryGuard(configManager, wandService);
 
-        if (!economyService.setup()) {
+        if (!economyService.isAvailable()) {
             fileLogger.warn("Vault economy provider missing. Disabling plugin.");
             getLogger().severe("Vault economy provider was not found. Disabling FoSellwands.");
             getServer().getPluginManager().disablePlugin(this);
@@ -84,6 +87,11 @@ public final class FoSellwands extends JavaPlugin {
                 .add("file-logging", this::reloadFileLogging)
                 .add("sounds", sounds::reload)
                 .addMessages(messages)
+                .add("economy", () -> {
+                    if (!economyService.reload()) {
+                        throw new IllegalStateException("Vault economy provider not found");
+                    }
+                })
                 .add("dialog-foundation", this::reloadDialogFoundation)
                 .add("protection", protectionService::reload)
                 .add("shop-price", shopPriceService::reload)
@@ -158,7 +166,58 @@ public final class FoSellwands extends JavaPlugin {
             changed |= FoMessageService.addMissingToken(config, "messages.editor-deleted", ":lava_bucket:");
             return changed;
         });
+        messages.migrateToVersion(core.migrations(), 2, this::migrateLegacyFeedbackMessages);
         messages.reload();
+    }
+
+    private boolean migrateLegacyFeedbackMessages(FileConfiguration messageConfig) {
+        boolean configChanged = false;
+        configChanged |= moveConfigMessage(messageConfig, "breakdown.header", "messages.breakdown-header",
+                "{prefix}{muted}Sale breakdown:");
+        configChanged |= moveConfigMessage(messageConfig, "breakdown.line", "messages.breakdown-line",
+                "{prefix} &8• {theme}{amount}x {item} {muted}= {theme}${price}");
+        configChanged |= moveConfigMessage(messageConfig, "breakdown.more", "messages.breakdown-more",
+                "{prefix}{muted}And {theme}{amount} {muted}more item types.");
+        configChanged |= moveConfigMessage(messageConfig, "feedback.actionbar.sell", "messages.feedback-actionbar-sell",
+                "#3ecf8eSold {amount} items for ${price}");
+        configChanged |= moveConfigMessage(messageConfig, "feedback.title.title", "messages.feedback-title-title",
+                "#03fc88sᴏʟᴅ");
+        configChanged |= moveConfigMessage(messageConfig, "feedback.title.subtitle", "messages.feedback-title-subtitle",
+                "#a7b8b0{amount} items for #03fc88${price}");
+        configChanged |= moveConfigList(messageConfig, "feedback.hologram.lines", "messages.feedback-hologram-lines",
+                List.of("#03fc88+${price}", "#ffffff{amount} ɪᴛᴇᴍs #a7b8b0sᴏʟᴅ"));
+        if (configChanged) {
+            saveConfig();
+        }
+        return true;
+    }
+
+    private boolean moveConfigMessage(FileConfiguration messageConfig, String configPath, String messagePath,
+            String bundledDefault) {
+        if (!getConfig().contains(configPath)) {
+            return false;
+        }
+        String legacyValue = getConfig().getString(configPath);
+        String currentValue = messageConfig.getString(messagePath);
+        if (legacyValue != null && (currentValue == null || currentValue.equals(bundledDefault))) {
+            messageConfig.set(messagePath, legacyValue);
+        }
+        getConfig().set(configPath, null);
+        return true;
+    }
+
+    private boolean moveConfigList(FileConfiguration messageConfig, String configPath, String messagePath,
+            List<String> bundledDefault) {
+        if (!getConfig().contains(configPath)) {
+            return false;
+        }
+        List<String> legacyValue = getConfig().getStringList(configPath);
+        List<String> currentValue = messageConfig.getStringList(messagePath);
+        if (!legacyValue.isEmpty() && (!messageConfig.contains(messagePath) || currentValue.equals(bundledDefault))) {
+            messageConfig.set(messagePath, legacyValue);
+        }
+        getConfig().set(configPath, null);
+        return true;
     }
 
     private FoSoundMigrations soundMigrations() {
