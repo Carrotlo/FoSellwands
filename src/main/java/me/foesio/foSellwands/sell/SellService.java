@@ -43,6 +43,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public final class SellService implements Listener {
+    private int remainingPriceSteps;
     private final JavaPlugin plugin;
     private final ConfigManager configManager;
     private final FoMessageService messages;
@@ -296,6 +297,7 @@ public final class SellService implements Listener {
             return;
         }
 
+        shopPriceService.reportSale(result.soldItems());
         messages.send(player, "messages.sold", "{prefix}{good}Sold {theme}{amount} items {muted}for {theme}${price}{muted}.", replacements(result));
         sendBreakdown(player, result);
         playFeedback(player, block, result);
@@ -310,8 +312,10 @@ public final class SellService implements Listener {
     }
 
     private SellResult processContents(Player player, ItemStack[] contents, double multiplier, int depth) {
+        if (depth == maxDepth()) remainingPriceSteps = 2048;
         SellResult result = new SellResult();
         for (int i = 0; i < contents.length; i++) {
+            if (remainingPriceSteps-- <= 0) break;
             ItemStack item = contents[i];
             if (item == null || item.getType().isAir()) {
                 continue;
@@ -332,11 +336,13 @@ public final class SellService implements Listener {
                 continue;
             }
 
-            double price = shopPriceService.getSellPrice(player, FoItemStacks.cloneItem(item));
+            ShopPriceService.SaleQuote quote = shopPriceService.getFinalQuote(player, FoItemStacks.cloneItem(item), multiplier);
+            double price = quote.total();
             if (price <= 0) {
                 continue;
             }
-            result.add(prettyItemName(item.getType()), item.getAmount(), price * multiplier);
+            result.add(prettyItemName(item.getType()), item.getAmount(), price);
+            if (quote.reportToFoShop()) result.recordItem(item);
             contents[i] = null;
         }
         return result;

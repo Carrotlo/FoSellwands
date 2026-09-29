@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 public final class SellResult {
+    private final java.util.List<org.bukkit.inventory.ItemStack> soldItems = new java.util.ArrayList<>();
+    public void recordItem(org.bukkit.inventory.ItemStack item) { soldItems.add(item.clone()); }
+    public java.util.List<org.bukkit.inventory.ItemStack> soldItems() { return soldItems.stream().map(org.bukkit.inventory.ItemStack::clone).toList(); }
     private int itemAmount;
     private double money;
     private boolean changed;
@@ -47,6 +50,7 @@ public final class SellResult {
             return;
         }
         this.itemAmount += other.itemAmount;
+        this.soldItems.addAll(other.soldItems);
         this.money += other.money;
         this.changed = this.changed || other.changed;
         for (BreakdownEntry entry : other.breakdown.values()) {
