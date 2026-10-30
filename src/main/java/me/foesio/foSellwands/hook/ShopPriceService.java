@@ -3,22 +3,28 @@ package me.foesio.foSellwands.hook;
 import me.foesio.core.item.FoItemStacks;
 import me.foesio.core.logging.FoFileLogger;
 import me.foesio.foSellwands.config.ConfigManager;
+import me.foesio.foSellwands.api.SellPriceProvider;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class ShopPriceService {
     private final JavaPlugin plugin;
     private final ConfigManager configManager;
     private final FoFileLogger fileLogger;
     private boolean warnedNoProvider;
+    private final Set<Plugin> warnedCustomProviders = ConcurrentHashMap.newKeySet();
     private Plugin cachedFoShopPlugin;
     private Object cachedFoShopManager;
     private Method cachedFoShopPriceWithPlayer;
@@ -36,6 +42,25 @@ public final class ShopPriceService {
         if (item == null || item.getType().isAir()) {
             return 0D;
         }
+        List<RegisteredServiceProvider<SellPriceProvider>> customProviders = new ArrayList<>(
+                plugin.getServer().getServicesManager().getRegistrations(SellPriceProvider.class));
+        customProviders.sort(Comparator.comparingInt((RegisteredServiceProvider<SellPriceProvider> entry) ->
+                entry.getPriority().ordinal()).reversed());
+        for (RegisteredServiceProvider<SellPriceProvider> registration : customProviders) {
+            if (!registration.getPlugin().isEnabled()) {
+                continue;
+            }
+            try {
+                double price = registration.getProvider().getSellPrice(player, FoItemStacks.cloneItem(item));
+                if (price > 0D && Double.isFinite(price)) {
+                    return price;
+                }
+            } catch (RuntimeException exception) {
+                if (warnedCustomProviders.add(registration.getPlugin())) {
+                    fileLogger.warn("Custom sell price provider " + registration.getPlugin().getName() + " failed: " + exception.getMessage());
+                }
+            }
+        }
         for (String provider : providerPriority()) {
             double price = switch (provider.toLowerCase(Locale.ROOT)) {
                 case "foshop" -> getFoShopPrice(player, item);
@@ -46,7 +71,9 @@ public final class ShopPriceService {
                 return price;
             }
         }
-        if (!warnedNoProvider && !anyProviderEnabled()) {
+        if (!warnedNoProvider
+                && customProviders.stream().noneMatch(registration -> registration.getPlugin().isEnabled())
+                && !anyProviderEnabled()) {
             warnedNoProvider = true;
             fileLogger.warn("No sell price provider enabled. Install FoShop or ShopGUIPlus.");
         }
@@ -55,6 +82,7 @@ public final class ShopPriceService {
 
     public void reload() {
         warnedNoProvider = false;
+        warnedCustomProviders.clear();
         clearFoShopCache();
         refreshProviderPriority();
     }

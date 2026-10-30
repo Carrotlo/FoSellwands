@@ -7,6 +7,10 @@ import me.foesio.core.message.FoMessageService;
 import me.foesio.core.number.DurationParser;
 import me.foesio.core.sound.FoSoundService;
 import me.foesio.foSellwands.config.ConfigManager;
+import me.foesio.foSellwands.api.SaleSnapshot;
+import me.foesio.foSellwands.api.SellItemFilter;
+import me.foesio.foSellwands.api.event.SellwandPreSaleEvent;
+import me.foesio.foSellwands.api.event.SellwandSaleEvent;
 import me.foesio.foSellwands.hook.HistoryService;
 import me.foesio.foSellwands.hook.HologramService;
 import me.foesio.foSellwands.hook.ProtectionService;
@@ -29,6 +33,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.InvocationTargetException;
@@ -41,6 +47,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class SellService implements Listener {
     private final JavaPlugin plugin;
@@ -56,6 +64,7 @@ public final class SellService implements Listener {
     private final FoFileLogger fileLogger;
     private final Map<UUID, PendingConfirm> confirms = new HashMap<>();
     private final Map<UUID, Long> cooldowns = new HashMap<>();
+    private final Set<Plugin> warnedItemFilters = ConcurrentHashMap.newKeySet();
 
     public SellService(
             JavaPlugin plugin,
@@ -152,7 +161,7 @@ public final class SellService implements Listener {
 
         ClickAction clickAction = clickAction(event);
         if (clickAction == ClickAction.INSPECT) {
-            preview(player, inventory, data);
+            preview(player, block, inventory, data);
             return;
         }
         if (clickAction == ClickAction.NONE) {
@@ -171,7 +180,7 @@ public final class SellService implements Listener {
             return;
         }
 
-        sell(player, block, inventory, wand, data);
+        sell(player, block, inventory, wand, data, event.isAsynchronous());
     }
 
     private ClickAction clickAction(PlayerInteractEvent event) {
@@ -205,7 +214,7 @@ public final class SellService implements Listener {
         if (!wandService.isTier(data.id())) {
             return true;
         }
-        return player.hasPermission("fosellwands.use." + data.id().toLowerCase());
+        return player.hasPermission("fosellwands.use." + data.id().toLowerCase(Locale.ROOT));
     }
 
     private Inventory resolveInventory(Player player, Block block) {
@@ -218,10 +227,10 @@ public final class SellService implements Listener {
         return null;
     }
 
-    private void preview(Player player, Inventory inventory, WandData data) {
+    private void preview(Player player, Block block, Inventory inventory, WandData data) {
         ItemStack[] working = cloneContents(inventory.getContents());
-        SellResult result = processContents(player, working, data.multiplier(), maxDepth());
-        if (result.itemAmount() <= 0 || result.money() <= 0) {
+        SellResult result = processContents(player, block, working, data.multiplier(), maxDepth(), itemFilters());
+        if (!validResult(result)) {
             sounds.play(player, "sell.empty");
             messages.send(player, "messages.nothing-sold", "{prefix}{bad}Nothing sellable was found.");
             return;
@@ -232,8 +241,8 @@ public final class SellService implements Listener {
 
     private void previewConfirm(Player player, Block block, Inventory inventory, WandData data) {
         ItemStack[] working = cloneContents(inventory.getContents());
-        SellResult result = processContents(player, working, data.multiplier(), maxDepth());
-        if (result.itemAmount() <= 0 || result.money() <= 0) {
+        SellResult result = processContents(player, block, working, data.multiplier(), maxDepth(), itemFilters());
+        if (!validResult(result)) {
             sounds.play(player, "sell.empty");
             messages.send(player, "messages.nothing-sold", "{prefix}{bad}Nothing sellable was found.");
             return;
@@ -249,11 +258,12 @@ public final class SellService implements Listener {
         return pending != null && pending.blockKey().equals(blockKey(block)) && pending.expiresAt() >= System.currentTimeMillis();
     }
 
-    private void sell(Player player, Block block, Inventory inventory, ItemStack wand, WandData data) {
+    private void sell(Player player, Block block, Inventory inventory, ItemStack wand, WandData data, boolean asynchronous) {
         ItemStack[] original = cloneContents(inventory.getContents());
+        ItemStack originalWand = FoItemStacks.cloneItem(wand);
         ItemStack[] working = cloneContents(original);
-        SellResult result = processContents(player, working, data.multiplier(), maxDepth());
-        if (result.itemAmount() <= 0 || result.money() <= 0) {
+        SellResult result = processContents(player, block, working, data.multiplier(), maxDepth(), itemFilters());
+        if (!validResult(result)) {
             sounds.play(player, "sell.empty");
             messages.send(player, "messages.nothing-sold", "{prefix}{bad}Nothing sellable was found.");
             return;
@@ -262,6 +272,17 @@ public final class SellService implements Listener {
         int newUses = data.uses();
         if (newUses > 0) {
             newUses--;
+        }
+        SaleSnapshot sale = saleSnapshot(player, block, data, newUses, result);
+        SellwandPreSaleEvent preSale = new SellwandPreSaleEvent(player, sale, asynchronous);
+        plugin.getServer().getPluginManager().callEvent(preSale);
+        if (preSale.isCancelled()) {
+            return;
+        }
+        // A listener may have changed the container or held wand while handling the pre-sale event.
+        if (!Arrays.equals(original, inventory.getContents())
+                || !originalWand.equals(player.getInventory().getItemInMainHand())) {
+            return;
         }
         boolean deposited = false;
         try {
@@ -296,6 +317,8 @@ public final class SellService implements Listener {
             return;
         }
 
+        applyCooldown(player);
+        plugin.getServer().getPluginManager().callEvent(new SellwandSaleEvent(player, sale, asynchronous));
         messages.send(player, "messages.sold", "{prefix}{good}Sold {theme}{amount} items {muted}for {theme}${price}{muted}.", replacements(result));
         sendBreakdown(player, result);
         playFeedback(player, block, result);
@@ -305,11 +328,11 @@ public final class SellService implements Listener {
         if (newUses == 0) {
             messages.send(player, "messages.wand-broken", "{prefix}{bad}Your sellwand ran out of uses.");
         }
-        applyCooldown(player);
         historyService.logSale(player, block, data, newUses, result);
     }
 
-    private SellResult processContents(Player player, ItemStack[] contents, double multiplier, int depth) {
+    private SellResult processContents(Player player, Block block, ItemStack[] contents, double multiplier, int depth,
+                                       List<RegisteredServiceProvider<SellItemFilter>> filters) {
         SellResult result = new SellResult();
         for (int i = 0; i < contents.length; i++) {
             ItemStack item = contents[i];
@@ -319,8 +342,11 @@ public final class SellService implements Listener {
             if (wandService.isWandItem(item)) {
                 continue;
             }
+            if (!itemFiltersAllow(player, block, item, filters)) {
+                continue;
+            }
 
-            NestedProcess nested = processNested(player, item, multiplier, depth);
+            NestedProcess nested = processNested(player, block, item, multiplier, depth, filters);
             result.merge(nested.result());
             item = nested.item();
             contents[i] = item;
@@ -336,24 +362,66 @@ public final class SellService implements Listener {
             if (price <= 0) {
                 continue;
             }
-            result.add(prettyItemName(item.getType()), item.getAmount(), price * multiplier);
+            double total = price * multiplier;
+            if (total <= 0D || !Double.isFinite(total)) {
+                continue;
+            }
+            result.add(item.getType(), prettyItemName(item.getType()), item.getAmount(), total);
             contents[i] = null;
         }
         return result;
     }
 
-    private NestedProcess processNested(Player player, ItemStack item, double multiplier, int depth) {
+    private List<RegisteredServiceProvider<SellItemFilter>> itemFilters() {
+        return List.copyOf(plugin.getServer().getServicesManager().getRegistrations(SellItemFilter.class));
+    }
+
+    private boolean itemFiltersAllow(Player player, Block block, ItemStack item,
+                                     List<RegisteredServiceProvider<SellItemFilter>> filters) {
+        for (RegisteredServiceProvider<SellItemFilter> registration : filters) {
+            if (!registration.getPlugin().isEnabled()) {
+                continue;
+            }
+            try {
+                if (!registration.getProvider().canSell(player, block, FoItemStacks.cloneItem(item))) {
+                    return false;
+                }
+            } catch (RuntimeException exception) {
+                if (warnedItemFilters.add(registration.getPlugin())) {
+                    fileLogger.warn("Sell item filter " + registration.getPlugin().getName() + " failed: " + exception.getMessage());
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private SaleSnapshot saleSnapshot(Player player, Block block, WandData data, int usesRemaining, SellResult result) {
+        List<SaleSnapshot.SaleLine> breakdown = result.breakdown().stream()
+                .map(line -> new SaleSnapshot.SaleLine(line.itemName(), line.amount(), line.price()))
+                .toList();
+        return new SaleSnapshot(player.getUniqueId(), block.getWorld().getUID(), block.getX(), block.getY(), block.getZ(),
+                data.id(), data.uuid(), usesRemaining, result.itemAmount(), result.money(), result.materialAmounts(), breakdown);
+    }
+
+    private boolean validResult(SellResult result) {
+        return result.itemAmount() > 0 && result.money() > 0D && Double.isFinite(result.money());
+    }
+
+    private NestedProcess processNested(Player player, Block block, ItemStack item, double multiplier, int depth,
+                                        List<RegisteredServiceProvider<SellItemFilter>> filters) {
         if (!configManager.config().getBoolean("settings.nested-containers", true) || depth <= 0) {
             return new NestedProcess(item, new SellResult(), false, false);
         }
-        NestedProcess blockState = processBlockStateContainer(player, item, multiplier, depth);
+        NestedProcess blockState = processBlockStateContainer(player, block, item, multiplier, depth, filters);
         if (blockState.wasContainer()) {
             return blockState;
         }
-        return processBundle(player, item, multiplier, depth);
+        return processBundle(player, block, item, multiplier, depth, filters);
     }
 
-    private NestedProcess processBlockStateContainer(Player player, ItemStack item, double multiplier, int depth) {
+    private NestedProcess processBlockStateContainer(Player player, Block block, ItemStack item, double multiplier, int depth,
+                                                     List<RegisteredServiceProvider<SellItemFilter>> filters) {
         ItemMeta meta = item.getItemMeta();
         if (!(meta instanceof BlockStateMeta blockStateMeta) || !(blockStateMeta.getBlockState() instanceof Container container)) {
             return new NestedProcess(item, new SellResult(), false, false);
@@ -364,7 +432,7 @@ public final class SellService implements Listener {
         }
 
         ItemStack[] nestedContents = cloneContents(container.getInventory().getContents());
-        SellResult result = processContents(player, nestedContents, multiplier, depth - 1);
+        SellResult result = processContents(player, block, nestedContents, multiplier, depth - 1, filters);
         if (result.changed()) {
             container.getInventory().setContents(nestedContents);
             blockStateMeta.setBlockState(container);
@@ -374,7 +442,8 @@ public final class SellService implements Listener {
     }
 
     @SuppressWarnings("unchecked")
-    private NestedProcess processBundle(Player player, ItemStack item, double multiplier, int depth) {
+    private NestedProcess processBundle(Player player, Block block, ItemStack item, double multiplier, int depth,
+                                        List<RegisteredServiceProvider<SellItemFilter>> filters) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
             return new NestedProcess(item, new SellResult(), false, false);
@@ -397,7 +466,7 @@ public final class SellService implements Listener {
             }
 
             ItemStack[] nestedContents = cloneContents(bundleItems.toArray(new ItemStack[0]));
-            SellResult result = processContents(player, nestedContents, multiplier, depth - 1);
+            SellResult result = processContents(player, block, nestedContents, multiplier, depth - 1, filters);
             if (result.changed()) {
                 List<ItemStack> updated = Arrays.stream(nestedContents)
                         .filter(stack -> stack != null && !stack.getType().isAir())

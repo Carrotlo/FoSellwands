@@ -4,6 +4,7 @@ import de.tr7zw.changeme.nbtapi.NBT;
 import de.tr7zw.changeme.nbtapi.iface.ReadableItemNBT;
 import me.foesio.core.editor.CursorItemEditor;
 import me.foesio.core.material.MaterialTypes;
+import me.foesio.core.number.NumberFormatters;
 import me.foesio.core.text.FoText;
 import me.foesio.foSellwands.config.ConfigManager;
 import me.foesio.core.economy.VaultEconomyBridge;
@@ -19,10 +20,10 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -249,8 +250,11 @@ public final class WandService {
     }
 
     public String formatMoney(double amount) {
-        String pattern = configManager.config().getString("settings.number-format", "#,##0.##");
-        return new DecimalFormat(pattern).format(amount);
+        if (configManager.config().contains("settings.number-format")) {
+            String pattern = configManager.config().getString("settings.number-format", "#,##0.##");
+            return new java.text.DecimalFormat(pattern).format(amount);
+        }
+        return NumberFormatters.compact(amount);
     }
 
     public double defaultMultiplier() {
@@ -319,7 +323,7 @@ public final class WandService {
         if (tierId == null || tierId.isBlank()) {
             return "default";
         }
-        return tierId.toLowerCase().replace(' ', '_');
+        return tierId.toLowerCase(Locale.ROOT).replace(' ', '_');
     }
 
     private boolean hasTierValue(String tierId, String child) {

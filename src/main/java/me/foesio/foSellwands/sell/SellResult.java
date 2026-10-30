@@ -1,5 +1,7 @@
 package me.foesio.foSellwands.sell;
 
+import org.bukkit.Material;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +12,7 @@ public final class SellResult {
     private double money;
     private boolean changed;
     private final Map<String, BreakdownEntry> breakdown = new LinkedHashMap<>();
+    private final Map<String, Integer> materialAmounts = new LinkedHashMap<>();
 
     public int itemAmount() {
         return itemAmount;
@@ -25,6 +28,18 @@ public final class SellResult {
 
     public List<BreakdownEntry> breakdown() {
         return new ArrayList<>(breakdown.values());
+    }
+
+    public Map<String, Integer> materialAmounts() {
+        return Map.copyOf(materialAmounts);
+    }
+
+    public void add(Material material, String itemName, int amount, double price) {
+        if (amount <= 0 || price <= 0) {
+            return;
+        }
+        add(itemName, amount, price);
+        materialAmounts.merge(material.name(), amount, Integer::sum);
     }
 
     public void add(String itemName, int amount, double price) {
@@ -57,6 +72,7 @@ public final class SellResult {
                 return previous.add(entry.amount(), entry.price());
             });
         }
+        other.materialAmounts.forEach((material, amount) -> materialAmounts.merge(material, amount, Integer::sum));
     }
 
     public record BreakdownEntry(String itemName, int amount, double price) {

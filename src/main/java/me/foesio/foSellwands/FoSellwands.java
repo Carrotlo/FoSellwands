@@ -13,6 +13,7 @@ import me.foesio.core.sound.FoEditorSounds;
 import me.foesio.core.sound.FoSoundMigrations;
 import me.foesio.core.sound.FoSoundService;
 import me.foesio.core.update.UpdateNoticeService;
+import me.foesio.foSellwands.api.SellwandApi;
 import me.foesio.foSellwands.command.FoSellwandsCommand;
 import me.foesio.foSellwands.config.ConfigManager;
 import me.foesio.foSellwands.gui.EditorManager;
@@ -24,6 +25,7 @@ import me.foesio.foSellwands.listener.WandInventoryGuard;
 import me.foesio.foSellwands.sell.SellService;
 import me.foesio.foSellwands.wand.WandService;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.ServicePriority;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.List;
@@ -45,6 +47,7 @@ public final class FoSellwands extends JavaPlugin {
     private HologramService hologramService;
     private UpdateNoticeService updateNotices;
     private WandService wandService;
+    private SellwandApi sellwandApi;
     private SellService sellService;
     private EditorManager editorManager;
     private WandInventoryGuard wandInventoryGuard;
@@ -109,6 +112,8 @@ public final class FoSellwands extends JavaPlugin {
         hologramService.cleanupLoadedHolograms();
 
         FoSellwandsCommand.register(this, messages, wandService, editorManager, updateNotices, reloadRegistry);
+        this.sellwandApi = new DefaultSellwandApi(this, wandService);
+        getServer().getServicesManager().register(SellwandApi.class, sellwandApi, this, ServicePriority.Normal);
         this.commandVisibility = CommandVisibilityService.builder(this)
                 .hideWithout("fosellwands.admin", "fosellwandsadmin", "sellwandsadmin", "fosellwands", "sellwands")
                 .register();
@@ -120,6 +125,10 @@ public final class FoSellwands extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (sellwandApi != null) {
+            getServer().getServicesManager().unregister(SellwandApi.class, sellwandApi);
+            sellwandApi = null;
+        }
         if (editorManager != null) {
             editorManager.close();
         }

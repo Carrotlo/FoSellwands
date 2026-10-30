@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.foesio</groupId>
     <artifactId>FoSellwands</artifactId>
-    <version>1.7</version>
+    <version>1.8</version>
     <packaging>jar</packaging>
     <name>FoSellwands</name>
     <properties>
@@ -80,12 +80,12 @@
         <dependency>
             <groupId>de.tr7zw</groupId>
             <artifactId>item-nbt-api</artifactId>
-            <version>2.15.2</version>
+            <version>2.16.1</version>
         </dependency>
         <dependency>
             <groupId>me.foesio</groupId>
             <artifactId>fo-plugin-core</artifactId>
-            <version>1.1</version>
+            <version>1.4</version>
         </dependency>
     </dependencies>
 </project>
